@@ -1,0 +1,10 @@
+{
+  "input": "I'm interested in cars",
+  "spoken_reply": "Welcome to our museum! We'll explore the fascinating Automotive Innovations Hall, dive into the rich heritage of the First Nations Cultural Space, and discover the advancements in the History of Medicine Chamber. Let's begin our journey together!",
+  "matched_locations": [
+    "Automotive Innovations Hall",
+    "First Nations Cultural Space",
+    "History of Medicine Chamber"
+  ],
+  "timestamp": "2025-04-16 14:22:34"
+}
