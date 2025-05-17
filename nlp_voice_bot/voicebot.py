@@ -2,34 +2,33 @@ import paho.mqtt.client as mqtt
 import speech_recognition as sr
 import os
 import time
-import json
 import random
 import subprocess
 from gtts import gTTS
 from openai import OpenAI
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
-
-# Create OpenAI client (automatically uses OPENAI_API_KEY from env)
-client = OpenAI()
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 MQTT_BROKER = "localhost"
 MQTT_PORT = 1883
 TOPIC_MOVEMENT = "movement"
 TOPIC_ARRIVED = "arrived"
 
+# Check if running in Docker container
 IN_CONTAINER = os.environ.get('IN_DOCKER_CONTAINER', 'false').lower() == 'true'
+
 mqtt_client = mqtt.Client(protocol=mqtt.MQTTv311)
 
 EXHIBITS = [
-    {"keyword": "da vinci", "location": "Mona Lisa"},
-    {"keyword": "van gogh", "location": "Sunflowers (Van Gogh)"},
-    {"keyword": "starry", "location": "Starry Night"},
-    {"keyword": "liberty", "location": "Liberty Leading the People"},
-    {"keyword": "egypt", "location": "Stylized Egyptian Sculpture"},
-    {"keyword": "toy", "location": "Toy Dog"},
+    {"keyword": "scream",       "location": "The Scream by Edvard Munch"},
+    {"keyword": "starry night", "location": "Starry Night by Vincent van Gogh"},
+    {"keyword": "sunflower",    "location": "Sunflowers by Vincent van Gogh"},
+    {"keyword": "liberty",      "location": "Liberty Leading the People by Eugène Delacroix"},
+    {"keyword": "mona lisa",    "location": "Mona Lisa by Leonardo da Vinci"},
+    {"keyword": "egyptian",     "location": "Ancient Egyptian Statue"},
+    {"keyword": "plushy dog",   "location": "Plushy Dog Sculpture"},
 ]
 
 current_location = None
@@ -39,6 +38,7 @@ arrived_flag = False
 def speak(text):
     print("Bot:", text)
     if not IN_CONTAINER:
+        # Use audio output only when not in container
         try:
             tts = gTTS(text=text, lang='en')
             tts.save("output.mp3")
@@ -49,254 +49,247 @@ def speak(text):
         except Exception as e:
             print(f"Audio error (continuing with text only): {e}")
 
-def on_arrived(client, userdata, message):
-    global current_location, upcoming_locations, arrived_flag
-    arrived_flag = True
-    print(f"\nArrived at: {current_location}")
-    if upcoming_locations:
-        print(f"Next: {upcoming_locations[0]}")
-    handle_conversation_after_arrival()
+def listen_to_user():
+    if IN_CONTAINER:
+        # Use text input when in Docker container
+        print("Enter your request (Docker mode):")
+        return input("> ")
+    else:
+        # Use voice input normally
+        recognizer = sr.Recognizer()
+        with sr.Microphone() as source:
+            recognizer.adjust_for_ambient_noise(source, duration=0.4)
+            print("Listening ...")
+            try:
+                audio = recognizer.listen(source, timeout=6, phrase_time_limit=20)
+                text = recognizer.recognize_google(audio)
+                print("You said:", text)
+                return text
+            except Exception as e:
+                print("Error:", e)
+                return None
+
+YES_WORDS  = {"yes", "sure", "okay", "sounds good", "yep", "yeah", "alright", "why not"}
+NO_WORDS   = {"no", "nope", "another", "different", "change", "don't"}
+MOVE_WORDS = {
+    "move on", "next", "continue", "let's go", "go on",
+    "no questions", "no question"     
+}
+END_WORDS  = {"done", "stop", "that's all", "end", "quit", "exit"}  
+
+def _contains(text: str, word_set: set[str]) -> bool:
+    t = text.lower()
+    return any(w in t for w in word_set)
+
+def wants_yes(text: str | None) -> bool:
+    return bool(text) and _contains(text, YES_WORDS)
+
+def wants_no(text: str | None) -> bool:
+    return bool(text) and _contains(text, NO_WORDS)
+
+def wants_move_on(text: str | None) -> bool:
+    return bool(text) and (_contains(text, MOVE_WORDS) or wants_yes(text))
+
+def wants_to_end(text: str | None) -> bool:
+    return bool(text) and _contains(text, END_WORDS)
 
 def setup_mqtt():
     try:
         mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
         mqtt_client.subscribe(TOPIC_ARRIVED)
-        mqtt_client.message_callback_add(TOPIC_ARRIVED, on_arrived)
+        mqtt_client.on_message = on_arrived
         mqtt_client.loop_start()
         print("MQTT client connected to broker")
     except Exception as e:
         print(f"MQTT connection error: {e}")
         if IN_CONTAINER:
             print("If running in Docker, make sure MQTT broker is accessible")
-            time.sleep(5)
+            time.sleep(5)  # Give time for broker to potentially start
             try:
                 mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
                 mqtt_client.subscribe(TOPIC_ARRIVED)
-                mqtt_client.message_callback_add(TOPIC_ARRIVED, on_arrived)
+                mqtt_client.on_message = on_arrived
                 mqtt_client.loop_start()
                 print("MQTT client connected to broker on retry")
             except Exception as retry_e:
                 print(f"MQTT connection retry failed: {retry_e}")
 
-def listen_to_user():
-    if IN_CONTAINER:
-        print("Enter your request (Docker mode):")
-        return input("> ")
-    else:
-        recognizer = sr.Recognizer()
-        print("Press [Enter] to start speaking")
-        input()
-        with sr.Microphone() as source:
-            recognizer.adjust_for_ambient_noise(source, duration=0.4)
-            print("Listening...")
-            try:
-                audio = recognizer.listen(source, timeout=6, phrase_time_limit=20)
-                text = recognizer.recognize_google(audio)
-                print("You said:", text)
-
-                if text.strip().lower() == "testing cancel":
-                    os._exit(0)
-
-                return text
-            except Exception as e:
-                print("Error:", e)
-                return None
-
-def classify_user_preference(user_text):
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": (
-                "Classify the user's intent into one of these categories:\n"
-                "- specific: they name an artist or exhibit\n"
-                "- genre: they mention a theme like art, science, tech, history\n"
-                "- unsure: they express indecision or ask to be surprised\n"
-                "Reply ONLY with: specific, genre, or unsure"
-            )},
-            {"role": "user", "content": user_text}
-        ]
-    )
-    return response.choices[0].message.content.strip().lower()
-
-def choose_exhibit_locations(user_text):
-    exhibit_list = ", ".join([f"{e['keyword']} ({e['location']})" for e in EXHIBITS])
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": (
-                f"You are a helpful assistant. Based on the user's interests, pick up to 3 relevant exhibits from this list: {exhibit_list}.\n"
-                "Return ONLY a comma-separated list of exhibit locations that best match the user's interests. If none match, return 'none'."
-            )},
-            {"role": "user", "content": user_text}
-        ]
-    )
-    reply = response.choices[0].message.content.strip()
-    if reply.lower() == "none":
-        return []
-    return [loc.strip() for loc in reply.split(",") if loc.strip()]
-
-def send_movement_command(location):
+def send_movement_command(location: str) -> None:
     global arrived_flag
     print(f"Sending location to movement channel: {location}")
     mqtt_client.publish(TOPIC_MOVEMENT, location)
+    # Reset the arrived flag when sending a new movement command
     arrived_flag = False
 
-def handle_conversation_after_arrival():
-    global current_location
-    summary = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": f"You are a museum guide. Provide a warm, engaging 2-3 sentence summary about the exhibit called '{current_location}'."}
-        ]
-    ).choices[0].message.content.strip()
-    speak(summary)
-    speak(f"Would you like to hear more or ask a question about the {current_location}?")
-    followup = listen_to_user()
-    if followup:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": f"You are at the {current_location}. Describe it or answer questions about the exhibit."},
-                {"role": "user", "content": followup}
-            ]
-        ).choices[0].message.content.strip()
-        speak(response)
+def on_arrived(client, userdata, message):
+    global arrived_flag
+    arrived_flag = True
+    print(f"\nArrived at: {current_location}")
 
 def wait_for_arrival():
     global arrived_flag
     print("Waiting for arrival confirmation...")
-    timeout = 30
+    timeout = 30  # 30 seconds timeout
     start_time = time.time()
     
     while not arrived_flag:
         time.sleep(0.5)
         if time.time() - start_time > timeout:
             print("Timeout waiting for arrival confirmation")
+            if IN_CONTAINER:
+                # In Docker, simulate arrival for testing
+                arrived_flag = True
+                return True
             return False
     
     return True
 
-def tour_loop():
-    global current_location, upcoming_locations, arrived_flag
-    while True:
-        if not wait_for_arrival():
-            speak("I'm having trouble confirming our arrival at the exhibit. Let me try again.")
-            send_movement_command(current_location)
-            if not wait_for_arrival():
-                speak("I'm sorry, but there seems to be a problem with the navigation system.")
-                break
-        
-        if not upcoming_locations:
-            speak("We've now visited all the planned exhibits. Are there any more exhibits you'd like to visit, or should we conclude the tour for today?")
-            final_reply = listen_to_user()
-            if final_reply:
-                confirm_end = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": "Decide if the user is saying they want to end the tour. Reply ONLY with 'yes' to end, or 'no' to continue."},
-                        {"role": "user", "content": final_reply}
-                    ]
-                ).choices[0].message.content.strip().lower()
-                if confirm_end == "yes":
-                    speak("Thanks for visiting! I hope you enjoy the rest of your day at the museum.")
-                    break
-                else:
-                    speak("No problem! What kind of exhibit would you like to visit next?")
-                    next_request = listen_to_user()
-                    new_locations = choose_exhibit_locations(next_request)
-                    if not new_locations:
-                        new_locations = random.sample([e["location"] for e in EXHIBITS], 1)
-                        speak("I couldn't find a perfect match, but let's check this one out!")
-                    current_location = new_locations[0]
-                    send_movement_command(current_location)
-                    continue
-            else:
-                speak("Thanks for visiting! I hope you enjoy the rest of your day at the museum.")
-                break
+def simulate_arrival() -> None:
+    # This is used for development/testing when not connected to real navigation
+    if not wait_for_arrival() and not IN_CONTAINER:
+        # If waiting for MQTT arrival timed out, simulate it
+        time.sleep(2)
+        on_arrived(None, None, type("MQTTMessage", (object,), {"topic": TOPIC_ARRIVED, "payload": b""}))
 
-        speak("Would you like to continue to the next exhibit?")
+def exhibit_summary(name: str) -> str:
+    return client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "system",
+                   "content": f"You are a museum guide. Provide a warm, engaging 2-3 sentence summary about the exhibit '{name}'."}]
+    ).choices[0].message.content.strip()
+
+def answer_question(exhibit: str, question: str) -> str:
+    return client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": f"You are a museum guide at '{exhibit}'. Answer visitor questions clearly but concisely."},
+            {"role": "user", "content": question}
+        ]
+    ).choices[0].message.content.strip()
+
+def propose_exhibit(unvisited: list[str]) -> str | None:
+    if not unvisited:
+        return None
+    while unvisited:
+        choice = random.choice(unvisited)
+        speak(f"How about we head to the {choice}? How does that sound?")
         reply = listen_to_user()
-        if not reply:
-            speak("I didn't catch that. Would you like to continue to the next exhibit?")
-            reply = listen_to_user()
-            if not reply:
-                speak("Still didn't catch a response, so I'll end the tour here. Hope you enjoyed it!")
-                break
-        if reply:
-            confirm = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "Decide if the user is saying yes to continue. Reply ONLY with 'yes' or 'no'."},
-                    {"role": "user", "content": reply}
-                ]
-            ).choices[0].message.content.strip().lower()
-            if confirm == "yes":
-                if upcoming_locations:
-                    current_location = upcoming_locations.pop(0)
-                    speak(f"Alright, now heading to the {current_location}.")
-                    send_movement_command(current_location)
-                else:
-                    speak("Looks like we've reached the end of our planned exhibits. Hope you enjoyed the tour!")
-                    break
-            else:
-                speak("Ending the tour. Hope you enjoyed it!")
-                break
-        else:
-            speak("Ending the tour. Hope you enjoyed it!")
-            break
+
+        if wants_to_end(reply):
+            return None
+        if wants_yes(reply):
+            return choice        
+        unvisited.remove(choice)
+        if unvisited:
+            speak("No problem, let me suggest another option.")
+    return None
+
+def end_tour() -> None:
+    speak("Thanks for visiting! I hope you enjoy the rest of your day at the museum.")
+    send_movement_command("initial")
+    mqtt_client.loop_stop()
+    mqtt_client.disconnect()
+    raise SystemExit
 
 def main():
+    # Setup MQTT connection
     setup_mqtt()
-    global current_location, upcoming_locations
     
+    # Start interaction
+    visited: set[str] = set()
     speak("Hi! Welcome to the museum. What kind of exhibits are you interested in seeing today?")
-    user_input = listen_to_user()
-    preference = classify_user_preference(user_input or "unsure")
+    first = listen_to_user()
 
-    if preference == "specific":
-        locations = choose_exhibit_locations(user_input)
-        if not locations:
-            speak("Sorry, we don't have any exhibits that match your interests.")
-            locations = random.sample([e["location"] for e in EXHIBITS], 3)
-            speak("Would you like to visit some random exhibits instead?")
-            confirm = listen_to_user()
-            if confirm and "yes" in confirm.lower():
-                speak(f"Great! Today we'll visit {', '.join(locations)}.")
+    if not first or _contains(first, {"don't know", "not sure", "idk"}):
+        while True:
+            unvisited = [e["location"] for e in EXHIBITS if e["location"] not in visited]
+            target = propose_exhibit(unvisited)
+            if target is None:
+                end_tour()
+
+            current_location = target
+            visited.add(current_location)
+            send_movement_command(current_location)
+            
+            # Wait for arrival or simulate it if necessary
+            if IN_CONTAINER:
+                wait_for_arrival()
             else:
-                speak("No worries, feel free to ask me again anytime!")
-                return
-    elif preference == "genre":
-        locations = choose_exhibit_locations(user_input)
-        if not locations:
-            locations = random.sample([e["location"] for e in EXHIBITS], 3)
-            speak(f"Couldn't find a perfect match. How about these: {', '.join(locations)}?")
+                simulate_arrival()
+                
+            speak(exhibit_summary(current_location))
+
+            while True:
+                speak("Do you have any questions about this exhibit, or would you like to move on?")
+                resp = listen_to_user()
+
+                if wants_to_end(resp):
+                    end_tour()
+                if wants_move_on(resp):
+                    break
+                if not resp:
+                    speak("I didn't catch that, so let's move on.")
+                    break
+                speak(answer_question(current_location, resp))
     else:
-        locations = random.sample([e["location"] for e in EXHIBITS], 3)
-        speak(f"I'll surprise you! Let's visit {', '.join(locations)}.")
+        def choose_locs(text: str) -> list[str]:
+            exhibit_list = ", ".join(f"{e['keyword']} ({e['location']})" for e in EXHIBITS)
+            reply = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system",
+                     "content": f"Choose up to 3 exhibit LOCATIONS matching the user's interest from: {exhibit_list}. Return a comma-separated list or 'none'."},
+                    {"role": "user", "content": text}
+                ]
+            ).choices[0].message.content.strip()
+            return [] if reply.lower() == "none" else [loc.strip() for loc in reply.split(",")]
 
-    if len(locations) < 3:
-        extras = [e["location"] for e in EXHIBITS if e["location"] not in locations]
-        if extras:
-            locations += random.sample(extras, min(3 - len(locations), len(extras)))
+        upcoming = choose_locs(first)
+        if not upcoming:
+            upcoming = [random.choice([e["location"] for e in EXHIBITS])]
 
-    if len(locations) >= 3:
-        speak(f"Great! Here's the plan for today: we'll start at the {locations[0]}, then head to the {locations[1]}, and finish at the {locations[2]}.")
-        speak("Are you happy with this plan or would you like to visit different exhibits?")
-        alt_reply = listen_to_user()
-        if alt_reply and any(word in alt_reply.lower() for word in ["change", "different", "another", "other"]):
-            locations = choose_exhibit_locations(alt_reply)
-            if not locations:
-                locations = random.sample([e["location"] for e in EXHIBITS], 3)
-            speak(f"Thanks! Here's your new plan: {', '.join(locations)}.")
-    elif len(locations) == 2:
-        speak(f"Great! Here's the plan for today: we'll visit the {locations[0]} and then the {locations[1]}. Let's get started!")
-    elif len(locations) == 1:
-        speak(f"Great! We'll start with the {locations[0]}. Let's begin!")
+        while True:
+            current_location = upcoming.pop(0)
+            visited.add(current_location)
+            send_movement_command(current_location)
+            
+            # Wait for arrival or simulate it if necessary
+            if IN_CONTAINER:
+                wait_for_arrival()
+            else:
+                simulate_arrival()
+                
+            speak(exhibit_summary(current_location))
 
-    upcoming_locations = locations.copy()
-    current_location = upcoming_locations.pop(0)
-    send_movement_command(current_location)
-    tour_loop()
+            while True:
+                speak("Do you have any questions about this exhibit, or would you like to move on?")
+                r = listen_to_user()
+
+                if wants_to_end(r):
+                    end_tour()
+                if wants_move_on(r):
+                    break
+                if not r:
+                    speak("I didn't catch that, so let's move on.")
+                    break
+                speak(answer_question(current_location, r))
+
+            if not upcoming:
+                speak("Would you like to visit another exhibit?")
+                nxt = listen_to_user()
+
+                if wants_to_end(nxt) or wants_no(nxt):  
+                    end_tour()
+
+                if not nxt or _contains(nxt, {"don't know", "not sure", "idk"}):
+                    pick = propose_exhibit([e["location"] for e in EXHIBITS if e["location"] not in visited])
+                    if pick is None:
+                        end_tour()
+                    upcoming.append(pick)
+                else:
+                    cand = [loc for loc in choose_locs(nxt) if loc not in visited]
+                    upcoming.extend(cand or
+                                   [random.choice([e["location"] for e in EXHIBITS if e["location"] not in visited])])
 
 if __name__ == "__main__":
     main()
