@@ -16,9 +16,6 @@ MQTT_PORT = 1883
 TOPIC_MOVEMENT = "movement"
 TOPIC_ARRIVED = "arrived"
 
-# Check if running in Docker container
-IN_CONTAINER = os.environ.get('IN_DOCKER_CONTAINER', 'false').lower() == 'true'
-
 mqtt_client = mqtt.Client(protocol=mqtt.MQTTv311)
 
 EXHIBITS = [
@@ -33,41 +30,32 @@ EXHIBITS = [
 
 current_location = None
 upcoming_locations = []
-arrived_flag = False
 
 def speak(text):
     print("Bot:", text)
-    if not IN_CONTAINER:
-        # Use audio output only when not in container
-        try:
-            tts = gTTS(text=text, lang='en')
-            tts.save("output.mp3")
-            subprocess.run([
-                "ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet",
-                "-af", "atempo=1.3", "output.mp3"
-            ], check=True)
-        except Exception as e:
-            print(f"Audio error (continuing with text only): {e}")
+    try:
+        tts = gTTS(text=text, lang='en')
+        tts.save("output.mp3")
+        subprocess.run([
+            "ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet",
+            "-af", "atempo=1.3", "output.mp3"
+        ], check=True)
+    except Exception as e:
+        print(f"Audio error (continuing with text only): {e}")
 
 def listen_to_user():
-    if IN_CONTAINER:
-        # Use text input when in Docker container
-        print("Enter your request (Docker mode):")
-        return input("> ")
-    else:
-        # Use voice input normally
-        recognizer = sr.Recognizer()
-        with sr.Microphone() as source:
-            recognizer.adjust_for_ambient_noise(source, duration=0.4)
-            print("Listening ...")
-            try:
-                audio = recognizer.listen(source, timeout=6, phrase_time_limit=20)
-                text = recognizer.recognize_google(audio)
-                print("You said:", text)
-                return text
-            except Exception as e:
-                print("Error:", e)
-                return None
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        recognizer.adjust_for_ambient_noise(source, duration=0.4)
+        print("Listening ...")
+        try:
+            audio = recognizer.listen(source, timeout=6, phrase_time_limit=20)
+            text = recognizer.recognize_google(audio)
+            print("You said:", text)
+            return text
+        except Exception as e:
+            print("Error:", e)
+            return None
 
 YES_WORDS  = {"yes", "sure", "okay", "sounds good", "yep", "yeah", "alright", "why not"}
 NO_WORDS   = {"no", "nope", "another", "different", "change", "don't"}
@@ -93,63 +81,16 @@ def wants_move_on(text: str | None) -> bool:
 def wants_to_end(text: str | None) -> bool:
     return bool(text) and _contains(text, END_WORDS)
 
-def setup_mqtt():
-    try:
-        mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
-        mqtt_client.subscribe(TOPIC_ARRIVED)
-        mqtt_client.on_message = on_arrived
-        mqtt_client.loop_start()
-        print("MQTT client connected to broker")
-    except Exception as e:
-        print(f"MQTT connection error: {e}")
-        if IN_CONTAINER:
-            print("If running in Docker, make sure MQTT broker is accessible")
-            time.sleep(5)  # Give time for broker to potentially start
-            try:
-                mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
-                mqtt_client.subscribe(TOPIC_ARRIVED)
-                mqtt_client.on_message = on_arrived
-                mqtt_client.loop_start()
-                print("MQTT client connected to broker on retry")
-            except Exception as retry_e:
-                print(f"MQTT connection retry failed: {retry_e}")
-
 def send_movement_command(location: str) -> None:
-    global arrived_flag
     print(f"Sending location to movement channel: {location}")
     mqtt_client.publish(TOPIC_MOVEMENT, location)
-    # Reset the arrived flag when sending a new movement command
-    arrived_flag = False
+
+def simulate_arrival() -> None:         
+    time.sleep(2)
+    on_arrived(None, None, type("MQTTMessage", (object,), {"topic": TOPIC_ARRIVED, "payload": b""}))
 
 def on_arrived(client, userdata, message):
-    global arrived_flag
-    arrived_flag = True
     print(f"\nArrived at: {current_location}")
-
-def wait_for_arrival():
-    global arrived_flag
-    print("Waiting for arrival confirmation...")
-    timeout = 30  # 30 seconds timeout
-    start_time = time.time()
-    
-    while not arrived_flag:
-        time.sleep(0.5)
-        if time.time() - start_time > timeout:
-            print("Timeout waiting for arrival confirmation")
-            if IN_CONTAINER:
-                # In Docker, simulate arrival for testing
-                arrived_flag = True
-                return True
-            return False
-    
-    return True
-
-def simulate_arrival() -> None:
-    # This is used for development/testing when not connected to real navigation
-    if not wait_for_arrival() and not IN_CONTAINER:
-        # If waiting for MQTT arrival timed out, simulate it
-        time.sleep(2)
-        on_arrived(None, None, type("MQTTMessage", (object,), {"topic": TOPIC_ARRIVED, "payload": b""}))
 
 def exhibit_summary(name: str) -> str:
     return client.chat.completions.create(
@@ -187,109 +128,94 @@ def propose_exhibit(unvisited: list[str]) -> str | None:
 def end_tour() -> None:
     speak("Thanks for visiting! I hope you enjoy the rest of your day at the museum.")
     send_movement_command("initial")
-    mqtt_client.loop_stop()
-    mqtt_client.disconnect()
     raise SystemExit
 
-def main():
-    # Setup MQTT connection
-    setup_mqtt()
-    
-    # Start interaction
-    visited: set[str] = set()
-    speak("Hi! Welcome to the museum. What kind of exhibits are you interested in seeing today?")
-    first = listen_to_user()
+# MQTT setup
+mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
+mqtt_client.subscribe(TOPIC_ARRIVED)
+mqtt_client.on_message = on_arrived
+mqtt_client.loop_start()
 
-    if not first or _contains(first, {"don't know", "not sure", "idk"}):
+# Start interaction
+visited: set[str] = set()
+speak("Hi! Welcome to the museum. What kind of exhibits are you interested in seeing today?")
+first = listen_to_user()
+
+if not first or _contains(first, {"don't know", "not sure", "idk"}):
+    while True:
+        unvisited = [e["location"] for e in EXHIBITS if e["location"] not in visited]
+        target = propose_exhibit(unvisited)
+        if target is None:
+            end_tour()
+
+        current_location = target
+        visited.add(current_location)
+        send_movement_command(current_location)
+        simulate_arrival()
+        speak(exhibit_summary(current_location))
+
         while True:
-            unvisited = [e["location"] for e in EXHIBITS if e["location"] not in visited]
-            target = propose_exhibit(unvisited)
-            if target is None:
+            speak("Do you have any questions about this exhibit, or would you like to move on?")
+            resp = listen_to_user()
+
+            if wants_to_end(resp):
+                end_tour()
+            if wants_move_on(resp):
+                break
+            if not resp:
+                speak("I didn't catch that, so let's move on.")
+                break
+            speak(answer_question(current_location, resp))
+else:
+    def choose_locs(text: str) -> list[str]:
+        exhibit_list = ", ".join(f"{e['keyword']} ({e['location']})" for e in EXHIBITS)
+        reply = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system",
+                 "content": f"Choose up to 3 exhibit LOCATIONS matching the user's interest from: {exhibit_list}. Return a comma-separated list or 'none'."},
+                {"role": "user", "content": text}
+            ]
+        ).choices[0].message.content.strip()
+        return [] if reply.lower() == "none" else [loc.strip() for loc in reply.split(",")]
+
+    upcoming = choose_locs(first)
+    if not upcoming:
+        upcoming = [random.choice([e["location"] for e in EXHIBITS])]
+
+    while True:
+        current_location = upcoming.pop(0)
+        visited.add(current_location)
+        send_movement_command(current_location)
+        simulate_arrival()
+        speak(exhibit_summary(current_location))
+
+        while True:
+            speak("Do you have any questions about this exhibit, or would you like to move on?")
+            r = listen_to_user()
+
+            if wants_to_end(r):
+                end_tour()
+            if wants_move_on(r):
+                break
+            if not r:
+                speak("I didn't catch that, so let's move on.")
+                break
+            speak(answer_question(current_location, r))
+
+        if not upcoming:
+            speak("Would you like to visit another exhibit?")
+            nxt = listen_to_user()
+
+            if wants_to_end(nxt) or wants_no(nxt):  
                 end_tour()
 
-            current_location = target
-            visited.add(current_location)
-            send_movement_command(current_location)
-            
-            # Wait for arrival or simulate it if necessary
-            if IN_CONTAINER:
-                wait_for_arrival()
+            if not nxt or _contains(nxt, {"don't know", "not sure", "idk"}):
+                pick = propose_exhibit([e["location"] for e in EXHIBITS if e["location"] not in visited])
+                if pick is None:
+                    end_tour()
+                upcoming.append(pick)
             else:
-                simulate_arrival()
-                
-            speak(exhibit_summary(current_location))
-
-            while True:
-                speak("Do you have any questions about this exhibit, or would you like to move on?")
-                resp = listen_to_user()
-
-                if wants_to_end(resp):
-                    end_tour()
-                if wants_move_on(resp):
-                    break
-                if not resp:
-                    speak("I didn't catch that, so let's move on.")
-                    break
-                speak(answer_question(current_location, resp))
-    else:
-        def choose_locs(text: str) -> list[str]:
-            exhibit_list = ", ".join(f"{e['keyword']} ({e['location']})" for e in EXHIBITS)
-            reply = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system",
-                     "content": f"Choose up to 3 exhibit LOCATIONS matching the user's interest from: {exhibit_list}. Return a comma-separated list or 'none'."},
-                    {"role": "user", "content": text}
-                ]
-            ).choices[0].message.content.strip()
-            return [] if reply.lower() == "none" else [loc.strip() for loc in reply.split(",")]
-
-        upcoming = choose_locs(first)
-        if not upcoming:
-            upcoming = [random.choice([e["location"] for e in EXHIBITS])]
-
-        while True:
-            current_location = upcoming.pop(0)
-            visited.add(current_location)
-            send_movement_command(current_location)
-            
-            # Wait for arrival or simulate it if necessary
-            if IN_CONTAINER:
-                wait_for_arrival()
-            else:
-                simulate_arrival()
-                
-            speak(exhibit_summary(current_location))
-
-            while True:
-                speak("Do you have any questions about this exhibit, or would you like to move on?")
-                r = listen_to_user()
-
-                if wants_to_end(r):
-                    end_tour()
-                if wants_move_on(r):
-                    break
-                if not r:
-                    speak("I didn't catch that, so let's move on.")
-                    break
-                speak(answer_question(current_location, r))
-
-            if not upcoming:
-                speak("Would you like to visit another exhibit?")
-                nxt = listen_to_user()
-
-                if wants_to_end(nxt) or wants_no(nxt):  
-                    end_tour()
-
-                if not nxt or _contains(nxt, {"don't know", "not sure", "idk"}):
-                    pick = propose_exhibit([e["location"] for e in EXHIBITS if e["location"] not in visited])
-                    if pick is None:
-                        end_tour()
-                    upcoming.append(pick)
-                else:
-                    cand = [loc for loc in choose_locs(nxt) if loc not in visited]
-                    upcoming.extend(cand or
-                                   [random.choice([e["location"] for e in EXHIBITS if e["location"] not in visited])])
-
-if __name__ == "__main__":
-    main()
+                cand = [loc for loc in choose_locs(nxt) if loc not in visited]
+                upcoming.extend(cand or
+                                [random.choice([e["location"] for e in EXHIBITS if e["location"] not in visited])])
