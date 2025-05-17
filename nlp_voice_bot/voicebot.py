@@ -95,17 +95,42 @@ def on_connect(client, userdata, flags, rc):
     print(f"MQTT: Connected with result code {rc}")
     if rc == 0:
         mqtt_connected = True
-        client.subscribe(TOPIC_ARRIVED)
-        print(f"MQTT: Subscribed to {TOPIC_ARRIVED}")
+        # Make sure we're subscribed to the arrived topic
+        result = client.subscribe(TOPIC_ARRIVED)
+        print(f"MQTT: Subscribed to {TOPIC_ARRIVED}, result: {result}")
+        
+        # Add a specific message callback for the arrived topic
+        client.message_callback_add(TOPIC_ARRIVED, on_arrived_message)
+        print("MQTT: Added specific callback for arrival messages")
     else:
         print(f"MQTT: Failed to connect, result code: {rc}")
 
-def on_message(client, userdata, msg):
+def on_arrived_message(client, userdata, msg):
+    """Specific callback for arrival messages"""
     global waiting_for_arrival
-    print(f"MQTT: Received message on topic {msg.topic}")
-    if msg.topic == TOPIC_ARRIVED:
-        print(f"MQTT: Arrived at {current_location}")
+    try:
+        print(f"MQTT: ARRIVAL MESSAGE RECEIVED!")
+        message_content = msg.payload.decode() if msg.payload else ""
+        print(f"MQTT: Arrival message: '{message_content}'")
+        print(f"MQTT: Current location is: {current_location}")
         waiting_for_arrival = False
+    except Exception as e:
+        print(f"MQTT: Error in arrival callback: {e}")
+        waiting_for_arrival = False
+
+def on_message(client, userdata, msg):
+    """General message handler for any other topics"""
+    print(f"MQTT: General message received on topic: {msg.topic}")
+    try:
+        message_content = msg.payload.decode() if msg.payload else ""
+        print(f"MQTT: Message content: '{message_content}'")
+        
+        # As a fallback, also check for arrival messages here
+        if msg.topic == TOPIC_ARRIVED:
+            print(f"MQTT: Arrival detected in general handler!")
+            waiting_for_arrival = False
+    except Exception as e:
+        print(f"MQTT: Error in general message handler: {e}")
 
 def simulate_arrival():
     """Simulate arrival after a delay (used if MQTT fails)"""
@@ -138,17 +163,20 @@ def setup_mqtt():
 def send_movement_command(location: str) -> None:
     global waiting_for_arrival, mqtt_client, mqtt_connected
     
-    print(f"Navigation: Requesting movement to {location}")
+    # Simplify location string for navigation - use only the first part before "by" if it exists
+    nav_location = location.split(" by ")[0].lower()
+    print(f"Navigation: Requesting movement to '{nav_location}'")
     waiting_for_arrival = True
     
     if mqtt_connected and mqtt_client:
         try:
-            print(f"MQTT: Publishing to {TOPIC_MOVEMENT}: {location}")
-            mqtt_client.publish(TOPIC_MOVEMENT, location)
+            print(f"MQTT: Publishing to {TOPIC_MOVEMENT}: {nav_location}")
+            mqtt_client.publish(TOPIC_MOVEMENT, nav_location)
             print("MQTT: Message sent, waiting for arrival...")
+            # No simulation fallback - wait for real navigation
         except Exception as e:
             print(f"MQTT: Publish failed: {e}")
-            print("MQTT: Falling back to simulation...")
+            print("MQTT: Falling back to simulation ONLY because publishing failed...")
             threading.Thread(target=simulate_arrival).start()
     else:
         print("Navigation: MQTT not connected, using simulation")
@@ -160,14 +188,11 @@ def wait_for_arrival():
     print("Navigation: Waiting for arrival...")
     speak("We're on our way to the exhibit. Please wait while we navigate there.")
     
-    start_time = time.time()
-    timeout = 20  # Reduced to 20 seconds for faster response
+    # Print initial waiting status
+    print(f"Navigation: waiting_for_arrival state: {waiting_for_arrival}")
     
+    # Wait indefinitely for arrival notification
     while waiting_for_arrival:
-        if time.time() - start_time > timeout:
-            print("Navigation: Timeout! Proceeding anyway.")
-            waiting_for_arrival = False
-            break
         time.sleep(0.5)
     
     print(f"Navigation: Arrived at {current_location}")

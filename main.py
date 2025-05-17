@@ -1,7 +1,7 @@
 import time
 import paho.mqtt.client as mqtt
 from navigation.navigation import travel
-# Don't import mqtt_client from voicebot to avoid conflicts
+
 
 # MQTT configuration
 MQTT_BROKER = "localhost"
@@ -9,7 +9,6 @@ MQTT_PORT = 1883
 TOPIC_MOVEMENT = "movement"
 TOPIC_ARRIVED = "arrived"
 
-# Initialize MQTT client
 mqtt_client = mqtt.Client(protocol=mqtt.MQTTv311)
 goal = None
 navigation_active = False
@@ -45,7 +44,12 @@ def main():
         
         # Send arrival notification
         print(f"Navigation completed with result: {'SUCCESS' if result == 0 else 'FAILURE'}")
-        mqtt_client.publish(TOPIC_ARRIVED, "arrived")
+        
+        # More verbose arrival publishing
+        arrival_message = f"arrived at {goal}"
+        print(f"Publishing to {TOPIC_ARRIVED}: '{arrival_message}'")
+        publish_result = mqtt_client.publish(TOPIC_ARRIVED, arrival_message)
+        print(f"Publish result: {publish_result.rc} (0 means success)")
         
         # Reset navigation state
         navigation_active = False
