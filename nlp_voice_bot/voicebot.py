@@ -16,6 +16,7 @@ MQTT_PORT = 1883
 TOPIC_MOVEMENT = "movement"
 TOPIC_ARRIVED = "arrived"
 
+# MQTT client setup
 mqtt_client = mqtt.Client(protocol=mqtt.MQTTv311)
 
 EXHIBITS = [
@@ -30,6 +31,7 @@ EXHIBITS = [
 
 current_location = None
 upcoming_locations = []
+waiting_for_arrival = False
 
 def speak(text):
     print("Bot:", text)
@@ -82,15 +84,22 @@ def wants_to_end(text: str | None) -> bool:
     return bool(text) and _contains(text, END_WORDS)
 
 def send_movement_command(location: str) -> None:
+    global waiting_for_arrival
     print(f"Sending location to movement channel: {location}")
     mqtt_client.publish(TOPIC_MOVEMENT, location)
+    waiting_for_arrival = True
+    print("Waiting for arrival notification...")
 
-def simulate_arrival() -> None:         
-    time.sleep(2)
-    on_arrived(None, None, type("MQTTMessage", (object,), {"topic": TOPIC_ARRIVED, "payload": b""}))
+# MQTT callbacks
+def on_connect(client, userdata, flags, rc):
+    print(f"Connected to MQTT broker with result code {rc}")
+    mqtt_client.subscribe(TOPIC_ARRIVED)
+    print(f"Subscribed to {TOPIC_ARRIVED} topic")
 
 def on_arrived(client, userdata, message):
+    global waiting_for_arrival
     print(f"\nArrived at: {current_location}")
+    waiting_for_arrival = False
 
 def exhibit_summary(name: str) -> str:
     return client.chat.completions.create(
@@ -128,12 +137,19 @@ def propose_exhibit(unvisited: list[str]) -> str | None:
 def end_tour() -> None:
     speak("Thanks for visiting! I hope you enjoy the rest of your day at the museum.")
     send_movement_command("initial")
+    mqtt_client.disconnect()
     raise SystemExit
 
+def wait_for_arrival():
+    global waiting_for_arrival
+    speak("We're on our way to the exhibit. Please wait while we navigate there.")
+    while waiting_for_arrival:
+        time.sleep(0.5)
+
 # MQTT setup
-mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
-mqtt_client.subscribe(TOPIC_ARRIVED)
+mqtt_client.on_connect = on_connect
 mqtt_client.on_message = on_arrived
+mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
 mqtt_client.loop_start()
 
 # Start interaction
@@ -151,7 +167,7 @@ if not first or _contains(first, {"don't know", "not sure", "idk"}):
         current_location = target
         visited.add(current_location)
         send_movement_command(current_location)
-        simulate_arrival()
+        wait_for_arrival()
         speak(exhibit_summary(current_location))
 
         while True:
@@ -187,7 +203,7 @@ else:
         current_location = upcoming.pop(0)
         visited.add(current_location)
         send_movement_command(current_location)
-        simulate_arrival()
+        wait_for_arrival()
         speak(exhibit_summary(current_location))
 
         while True:
