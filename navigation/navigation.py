@@ -6,9 +6,9 @@ Proprietary software by GRINDRS - Ideas First; Innovation Later.
 """
 import math
 import time
-from ..basic_embedded.twomotorbasic import move_forward, move_backward, \
+from basic_embedded.twomotorbasic import move_forward, move_backward, \
                                            turn_right, motor1_stop, motor2_stop
-from ..basic_embedded.ultrasonictest import get_distance
+from basic_embedded.ultrasonictest import get_distance
 from capture_analyse import cap_anal
 
 NINETY_DEG = 0.5
