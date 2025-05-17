@@ -25,11 +25,11 @@ sleep 2
 
 # Start the main system in a new terminal
 echo "Starting main navigation system..."
-osascript -e 'tell app "Terminal" to do script "cd '$(pwd)' && python main.py"'
+python3 main.py
 
 # Start the voicebot in a new terminal
 echo "Starting voice bot system..."
-osascript -e 'tell app "Terminal" to do script "cd '$(pwd)' && python nlp_voice_bot/voicebot.py"'
+python3 nlp_voice_bot/voicebot.py
 
 echo "Museum system started successfully!"
 echo "Press Ctrl+C to stop the script"
