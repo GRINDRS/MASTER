@@ -17,74 +17,94 @@ MQTT_PORT = 1883
 TOPIC_MOVEMENT = "movement"
 TOPIC_ARRIVED = "arrived"
 
+# Check if running in Docker container
+IN_CONTAINER = os.environ.get('IN_DOCKER_CONTAINER', 'false').lower() == 'true'
+
 mqtt_client = mqtt.Client(protocol=mqtt.MQTTv311)
 
 EXHIBITS = [
-    {"keyword": "da vinci", "location": "Renaissance Art Hall"},
-    {"keyword": "van gogh", "location": "Impressionist Gallery"},
-    {"keyword": "dinosaur", "location": "Natural History Wing"},
-    {"keyword": "space", "location": "Cosmos Exploration Room"},
-    {"keyword": "egypt", "location": "Ancient Egypt Exhibit"},
-    {"keyword": "robot", "location": "Technology and Innovation Lab"},
-    {"keyword": "marine", "location": "Ocean Wonders Zone"},
-    {"keyword": "volcano", "location": "Earth Science Theatre"},
-    {"keyword": "medieval", "location": "Medieval Europe Hall"},
-    {"keyword": "fashion", "location": "Historic Fashion Gallery"},
-    {"keyword": "ai", "location": "Artificial Intelligence Hub"},
-    {"keyword": "greek", "location": "Ancient Greece Exhibit"},
-    {"keyword": "china", "location": "Dynasties of China Pavilion"},
-    {"keyword": "australia", "location": "First Nations Cultural Space"},
-    {"keyword": "insect", "location": "Entomology Showcase"},
-    {"keyword": "music", "location": "Sounds Through the Ages Room"},
-    {"keyword": "photography", "location": "Digital Media and Photography Wing"},
-    {"keyword": "cars", "location": "Automotive Innovations Hall"},
-    {"keyword": "planes", "location": "Aviation Heritage Gallery"},
-    {"keyword": "medicine", "location": "History of Medicine Chamber"},
+    {"keyword": "da vinci", "location": "Mona Lisa"},
+    {"keyword": "van gogh", "location": "Sunflowers (Van Gogh)"},
+    {"keyword": "starry", "location": "Starry Night"},
+    {"keyword": "liberty", "location": "Liberty Leading the People"},
+    {"keyword": "egypt", "location": "Stylized Egyptian Sculpture"},
+    {"keyword": "toy", "location": "Toy Dog"},
+    # Keeping some of the original exhibit options as alternatives
 ]
 
 current_location = None
 upcoming_locations = []
+arrived_flag = False
 
 def speak(text):
     print("Bot:", text)
-    tts = gTTS(text=text, lang='en')
-    tts.save("output.mp3")
-    subprocess.run([
-        "ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet",
-        "-af", "atempo=1.3", "output.mp3"
-    ], check=True)
+    if not IN_CONTAINER:
+        # Use audio output only when not in container
+        try:
+            tts = gTTS(text=text, lang='en')
+            tts.save("output.mp3")
+            subprocess.run([
+                "ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet",
+                "-af", "atempo=1.3", "output.mp3"
+            ], check=True)
+        except Exception as e:
+            print(f"Audio error (continuing with text only): {e}")
 
 def on_arrived(client, userdata, message):
-    global current_location, upcoming_locations
+    global current_location, upcoming_locations, arrived_flag
+    arrived_flag = True
     print(f"\nArrived at: {current_location}")
     if upcoming_locations:
         print(f"Next: {upcoming_locations[0]}")
     handle_conversation_after_arrival()
 
-mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
-mqtt_client.subscribe(TOPIC_ARRIVED)
-mqtt_client.on_message = on_arrived
-mqtt_client.loop_start()
+# Setup MQTT connection
+def setup_mqtt():
+    try:
+        mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        mqtt_client.subscribe(TOPIC_ARRIVED)
+        mqtt_client.message_callback_add(TOPIC_ARRIVED, on_arrived)
+        mqtt_client.loop_start()
+        print("MQTT client connected to broker")
+    except Exception as e:
+        print(f"MQTT connection error: {e}")
+        if IN_CONTAINER:
+            print("If running in Docker, make sure MQTT broker is accessible")
+            time.sleep(5)  # Give time for broker to potentially start
+            try:
+                mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
+                mqtt_client.subscribe(TOPIC_ARRIVED)
+                mqtt_client.message_callback_add(TOPIC_ARRIVED, on_arrived)
+                mqtt_client.loop_start()
+                print("MQTT client connected to broker on retry")
+            except Exception as retry_e:
+                print(f"MQTT connection retry failed: {retry_e}")
 
 def listen_to_user():
-    recognizer = sr.Recognizer()
-    print("Press [Enter] to start speaking")
-    input()
-    with sr.Microphone() as source:
-        recognizer.adjust_for_ambient_noise(source, duration=0.4)
-        print("Listening...")
-        try:
-            audio = recognizer.listen(source, timeout=6, phrase_time_limit=20)
-            text = recognizer.recognize_google(audio)
-            print("You said:", text)
+    if IN_CONTAINER:
+        # Use text input when in Docker container
+        print("Enter your request (Docker mode):")
+        return input("> ")
+    else:
+        # Use voice input normally
+        recognizer = sr.Recognizer()
+        print("Press [Enter] to start speaking")
+        input()
+        with sr.Microphone() as source:
+            recognizer.adjust_for_ambient_noise(source, duration=0.4)
+            print("Listening...")
+            try:
+                audio = recognizer.listen(source, timeout=6, phrase_time_limit=20)
+                text = recognizer.recognize_google(audio)
+                print("You said:", text)
 
-            if text.strip().lower() == "testing cancel":
-                os._exit(0)
+                if text.strip().lower() == "testing cancel":
+                    os._exit(0)
 
-            return text
-        except Exception as e:
-            print("Error:", e)
-            return None
+                return text
+            except Exception as e:
+                print("Error:", e)
+                return None
 
 def classify_user_preference(user_text):
     response = client.chat.completions.create(
@@ -120,8 +140,11 @@ def choose_exhibit_locations(user_text):
     return [loc.strip() for loc in reply.split(",") if loc.strip()]
 
 def send_movement_command(location):
+    global arrived_flag
     print(f"Sending location to movement channel: {location}")
     mqtt_client.publish(TOPIC_MOVEMENT, location)
+    # Reset the arrived flag when sending a new movement command
+    arrived_flag = False
 
 def handle_conversation_after_arrival():
     global current_location
@@ -144,14 +167,31 @@ def handle_conversation_after_arrival():
         ).choices[0].message.content.strip()
         speak(response)
 
-def simulate_arrival():
-    time.sleep(2)
-    on_arrived(None, None, type("MQTTMessage", (object,), {"topic": TOPIC_ARRIVED, "payload": b""}))
+def wait_for_arrival():
+    global arrived_flag
+    print("Waiting for arrival confirmation...")
+    timeout = 30  # 30 seconds timeout
+    start_time = time.time()
+    
+    while not arrived_flag:
+        time.sleep(0.5)
+        if time.time() - start_time > timeout:
+            print("Timeout waiting for arrival confirmation")
+            return False
+    
+    return True
 
 def tour_loop():
-    global current_location, upcoming_locations
+    global current_location, upcoming_locations, arrived_flag
     while True:
-        simulate_arrival()
+        # Wait for arrival confirmation from the navigation system
+        if not wait_for_arrival():
+            speak("I'm having trouble confirming our arrival at the exhibit. Let me try again.")
+            send_movement_command(current_location)
+            if not wait_for_arrival():
+                speak("I'm sorry, but there seems to be a problem with the navigation system.")
+                break
+        
         if not upcoming_locations:
             speak("We've now visited all the planned exhibits. Are there any more exhibits you'd like to visit, or should we conclude the tour for today?")
             final_reply = listen_to_user()
@@ -204,55 +244,67 @@ def tour_loop():
                 else:
                     speak("Looks like we've reached the end of our planned exhibits. Hope you enjoyed the tour!")
                     break
-            send_movement_command(current_location)
+            else:
+                speak("Ending the tour. Hope you enjoyed it!")
+                break
         else:
             speak("Ending the tour. Hope you enjoyed it!")
             break
 
-speak("Hi! Welcome to the museum. What kind of exhibits are you interested in seeing today?")
-user_input = listen_to_user()
-preference = classify_user_preference(user_input or "unsure")
+def main():
+    # Setup MQTT connection
+    setup_mqtt()
+    
+    global current_location, upcoming_locations
+    
+    speak("Hi! Welcome to the museum. What kind of exhibits are you interested in seeing today?")
+    user_input = listen_to_user()
+    preference = classify_user_preference(user_input or "unsure")
 
-if preference == "specific":
-    locations = choose_exhibit_locations(user_input)
-    if not locations:
-        speak("Sorry, we don't have any exhibits that match your interests.")
-        locations = random.sample([e["location"] for e in EXHIBITS], 3)
-        speak("Would you like to visit some random exhibits instead?")
-        confirm = listen_to_user()
-        if confirm and "yes" in confirm.lower():
-            speak(f"Great! Today we'll visit {', '.join(locations)}.")
-        else:
-            speak("No worries, feel free to ask me again anytime!")
-            exit()
-elif preference == "genre":
-    locations = choose_exhibit_locations(user_input)
-    if not locations:
-        locations = random.sample([e["location"] for e in EXHIBITS], 3)
-        speak(f"Couldn't find a perfect match. How about these: {', '.join(locations)}?")
-else:
-    locations = random.sample([e["location"] for e in EXHIBITS], 3)
-    speak(f"I'll surprise you! Let's visit {', '.join(locations)}.")
-
-if len(locations) < 3:
-    extras = [e["location"] for e in EXHIBITS if e["location"] not in locations]
-    locations += random.sample(extras, 3 - len(locations))
-
-if len(locations) >= 3:
-    speak(f"Great! Here's the plan for today: we'll start at the {locations[0]}, then head to the {locations[1]}, and finish at the {locations[2]}.")
-    speak("Are you happy with this plan or would you like to visit different exhibits? Here are a few options: " + ", ".join(random.sample([e['location'] for e in EXHIBITS if e['location'] not in locations], 3)) + ".")
-    alt_reply = listen_to_user()
-    if alt_reply and any(word in alt_reply.lower() for word in ["change", "different", "another", "other"]):
-        locations = choose_exhibit_locations(alt_reply)
+    if preference == "specific":
+        locations = choose_exhibit_locations(user_input)
+        if not locations:
+            speak("Sorry, we don't have any exhibits that match your interests.")
+            locations = random.sample([e["location"] for e in EXHIBITS], 3)
+            speak("Would you like to visit some random exhibits instead?")
+            confirm = listen_to_user()
+            if confirm and "yes" in confirm.lower():
+                speak(f"Great! Today we'll visit {', '.join(locations)}.")
+            else:
+                speak("No worries, feel free to ask me again anytime!")
+                return
+    elif preference == "genre":
+        locations = choose_exhibit_locations(user_input)
         if not locations:
             locations = random.sample([e["location"] for e in EXHIBITS], 3)
-        speak(f"Thanks! Here's your new plan: {', '.join(locations)}.")
-elif len(locations) == 2:
-    speak(f"Great! Here's the plan for today: we'll visit the {locations[0]} and then the {locations[1]}. Let's get started!")
-elif len(locations) == 1:
-    speak(f"Great! We'll start with the {locations[0]}. Let's begin!")
+            speak(f"Couldn't find a perfect match. How about these: {', '.join(locations)}?")
+    else:
+        locations = random.sample([e["location"] for e in EXHIBITS], 3)
+        speak(f"I'll surprise you! Let's visit {', '.join(locations)}.")
 
-upcoming_locations = locations.copy()
-current_location = upcoming_locations.pop(0)
-send_movement_command(current_location)
-tour_loop()
+    if len(locations) < 3:
+        extras = [e["location"] for e in EXHIBITS if e["location"] not in locations]
+        if extras:
+            locations += random.sample(extras, min(3 - len(locations), len(extras)))
+
+    if len(locations) >= 3:
+        speak(f"Great! Here's the plan for today: we'll start at the {locations[0]}, then head to the {locations[1]}, and finish at the {locations[2]}.")
+        speak("Are you happy with this plan or would you like to visit different exhibits?")
+        alt_reply = listen_to_user()
+        if alt_reply and any(word in alt_reply.lower() for word in ["change", "different", "another", "other"]):
+            locations = choose_exhibit_locations(alt_reply)
+            if not locations:
+                locations = random.sample([e["location"] for e in EXHIBITS], 3)
+            speak(f"Thanks! Here's your new plan: {', '.join(locations)}.")
+    elif len(locations) == 2:
+        speak(f"Great! Here's the plan for today: we'll visit the {locations[0]} and then the {locations[1]}. Let's get started!")
+    elif len(locations) == 1:
+        speak(f"Great! We'll start with the {locations[0]}. Let's begin!")
+
+    upcoming_locations = locations.copy()
+    current_location = upcoming_locations.pop(0)
+    send_movement_command(current_location)
+    tour_loop()
+
+if __name__ == "__main__":
+    main()

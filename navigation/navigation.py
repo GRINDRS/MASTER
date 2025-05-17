@@ -13,7 +13,7 @@ from capture_analyse import cap_anal
 
 NINETY_DEG = 0.5
 TIMEOUT_SECONDS = 90
-PIVOT_DISTANCE: float = -math.inf
+PIVOT_DISTANCE = 20.0  # Set a reasonable distance for wall detection
 PAIRINGS: dict[str, str] = {
     "Mona Lisa": "Toy Dog",
     "Sunflowers (Van Gogh)": "Stylized Egyptian Sculpture",
@@ -64,8 +64,10 @@ def is_correct_position(goal_art: str) -> bool:
         False otherwise!
     """
     detected_art = detect_artwork()
+    print(f"Detected artwork: {detected_art}, Goal: {goal_art}")
     if (goal_art == detected_art or 
-        goal_art == PAIRINGS[detected_art]):
+        goal_art == PAIRINGS.get(detected_art, "") or
+        detected_art == PAIRINGS.get(goal_art, "")):
         return True
     return False
 
@@ -90,6 +92,8 @@ def travel(goal_artwork: str) -> int:
         0 if the robot successfully navigated to its target artwork.
         1 if the robot's search timed out.
     """
+    print(f"Navigation started towards: {goal_artwork}")
+    
     # Bookkeep time for a timeout check.
     start_time = time.time()
     while True:
@@ -103,6 +107,7 @@ def travel(goal_artwork: str) -> int:
         # If a wall has been detected in viewing distance for the bot
         if wall_detection():
             if is_correct_position(goal_artwork):
+                print("Successfully reached the target artwork!")
                 return SUCCESS # We win
             else:
                 # TODO EMBEDDED FIX
@@ -110,4 +115,5 @@ def travel(goal_artwork: str) -> int:
         
         # If the navigation has taken more than 90 seconds (far too long).
         if search_timeout(start_time):
+            print("Navigation timed out!")
             return FAILURE
