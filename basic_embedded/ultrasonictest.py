@@ -5,11 +5,18 @@ import time
 TRIG = 5  # GPIO 5
 ECHO = 6  # GPIO 6
 
+# Set up the GPIO pins for the ultrasonic sensor.
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(TRIG, GPIO.OUT)
 GPIO.setup(ECHO, GPIO.IN)
 
-def get_distance():
+def get_distance() -> int:
+    """
+    Gets the distance by the ultrasonic sensor.
+
+    Returns:
+        Distance of range ()
+    """
     # Send 10us pulse to trigger
     GPIO.output(TRIG, True)
     time.sleep(0.00001)
