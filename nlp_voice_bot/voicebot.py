@@ -9,17 +9,18 @@ from gtts import gTTS
 from openai import OpenAI
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Create OpenAI client (automatically uses OPENAI_API_KEY from env)
+client = OpenAI()
 
 MQTT_BROKER = "localhost"
 MQTT_PORT = 1883
 TOPIC_MOVEMENT = "movement"
 TOPIC_ARRIVED = "arrived"
 
-# Check if running in Docker container
 IN_CONTAINER = os.environ.get('IN_DOCKER_CONTAINER', 'false').lower() == 'true'
-
 mqtt_client = mqtt.Client(protocol=mqtt.MQTTv311)
 
 EXHIBITS = [
@@ -29,7 +30,6 @@ EXHIBITS = [
     {"keyword": "liberty", "location": "Liberty Leading the People"},
     {"keyword": "egypt", "location": "Stylized Egyptian Sculpture"},
     {"keyword": "toy", "location": "Toy Dog"},
-    # Keeping some of the original exhibit options as alternatives
 ]
 
 current_location = None
@@ -39,7 +39,6 @@ arrived_flag = False
 def speak(text):
     print("Bot:", text)
     if not IN_CONTAINER:
-        # Use audio output only when not in container
         try:
             tts = gTTS(text=text, lang='en')
             tts.save("output.mp3")
@@ -58,7 +57,6 @@ def on_arrived(client, userdata, message):
         print(f"Next: {upcoming_locations[0]}")
     handle_conversation_after_arrival()
 
-# Setup MQTT connection
 def setup_mqtt():
     try:
         mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
@@ -70,7 +68,7 @@ def setup_mqtt():
         print(f"MQTT connection error: {e}")
         if IN_CONTAINER:
             print("If running in Docker, make sure MQTT broker is accessible")
-            time.sleep(5)  # Give time for broker to potentially start
+            time.sleep(5)
             try:
                 mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
                 mqtt_client.subscribe(TOPIC_ARRIVED)
@@ -82,11 +80,9 @@ def setup_mqtt():
 
 def listen_to_user():
     if IN_CONTAINER:
-        # Use text input when in Docker container
         print("Enter your request (Docker mode):")
         return input("> ")
     else:
-        # Use voice input normally
         recognizer = sr.Recognizer()
         print("Press [Enter] to start speaking")
         input()
@@ -143,7 +139,6 @@ def send_movement_command(location):
     global arrived_flag
     print(f"Sending location to movement channel: {location}")
     mqtt_client.publish(TOPIC_MOVEMENT, location)
-    # Reset the arrived flag when sending a new movement command
     arrived_flag = False
 
 def handle_conversation_after_arrival():
@@ -170,7 +165,7 @@ def handle_conversation_after_arrival():
 def wait_for_arrival():
     global arrived_flag
     print("Waiting for arrival confirmation...")
-    timeout = 30  # 30 seconds timeout
+    timeout = 30
     start_time = time.time()
     
     while not arrived_flag:
@@ -184,7 +179,6 @@ def wait_for_arrival():
 def tour_loop():
     global current_location, upcoming_locations, arrived_flag
     while True:
-        # Wait for arrival confirmation from the navigation system
         if not wait_for_arrival():
             speak("I'm having trouble confirming our arrival at the exhibit. Let me try again.")
             send_movement_command(current_location)
@@ -252,9 +246,7 @@ def tour_loop():
             break
 
 def main():
-    # Setup MQTT connection
     setup_mqtt()
-    
     global current_location, upcoming_locations
     
     speak("Hi! Welcome to the museum. What kind of exhibits are you interested in seeing today?")
