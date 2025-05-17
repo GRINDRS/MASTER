@@ -4,3 +4,6 @@ python-dotenv==1.0.0
 SpeechRecognition==3.10.0
 gTTS==2.3.2
 pyaudio==0.2.13
+Pillow>=10.0.1
+pyttsx3
+rpi-lgpio

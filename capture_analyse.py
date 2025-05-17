@@ -1,6 +1,6 @@
 import sys
 import cv2
-from .computer_vision_gpt_approach.computer_vision import  \
+from computer_vision_gpt_approach.computer_vision import  \
     resize_and_encode_image, match_image_to_artwork
 
 ARTWORKS = {
