@@ -42,14 +42,17 @@ def main():
         print(f"Starting navigation to: {goal}")
         result = travel(goal)
         
+
         # Send arrival notification
         print(f"Navigation completed with result: {'SUCCESS' if result == 0 else 'FAILURE'}")
-        
-        # More verbose arrival publishing
-        arrival_message = f"arrived at {goal}"
-        print(f"Publishing to {TOPIC_ARRIVED}: '{arrival_message}'")
-        publish_result = mqtt_client.publish(TOPIC_ARRIVED, arrival_message)
-        print(f"Publish result: {publish_result.rc} (0 means success)")
+        if result ==0:
+            # More verbose arrival publishing
+            arrival_message = f"arrived at {goal}"
+            print(f"Publishing to {TOPIC_ARRIVED}: '{arrival_message}'")
+            publish_result = mqtt_client.publish(TOPIC_ARRIVED, arrival_message)
+            print(f"Publish result: {publish_result.rc} (0 means success)")
+        else:
+            result = travel(goal) 
         
         # Reset navigation state
         navigation_active = False
