@@ -1,135 +1,184 @@
 
 """
-SuperSimpleNAVigation 
-    by Tristan Green
-
-Proprietary software by GRINDRS - Ideas First; Innovation Later.
+Integrated Grid-Based Navigation with Optimized Turning and Image Verification
 """
+
 import math
 import time
 import paho.mqtt.client as mqtt
 import sys
 import os
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from basic_embedded.twomotorbasic import move_forward, move_backward, \
-                                       turn_right, motor1_stop, motor2_stop
+from basic_embedded.twomotorbasic import (
+    move_forward, move_backward,
+    turn_90_left, turn_90_right,
+    turn_behind_left, turn_behind_right,
+    motor1_stop, motor2_stop
+)
 from basic_embedded.ultrasonic_sensor import init_sensor, stop_sensor, get_distance
 from capture_analyse import cap_anal
 
+# Constants
 NINETY_DEG = 0.5
-TIMEOUT_SECONDS = 90
 PIVOT_DISTANCE = 20.0
 OBSTACLE_THRESHOLD = 15.0
 
-PAIRINGS: dict[str, str] = {
-    "Mona Lisa": "Toy Dog",
-    "Sunflowers (Van Gogh)": "Stylized Egyptian Sculpture",
-    "Liberty Leading the People": "",
-    "": "Starry Night"
-}
+# Grid Layout
+Location_matrix = [
+    [0, 'Mona Lisa', 0],
+    ['Scream', 0, 'Sunflower'],
+    ['Dog', 0, 'Egyptian'],
+    ['Liberty', 'Initial', 'Starry Night']
+]
 
-SUCCESS = 0
-FAILURE = 1
+directions = ["UP", "RIGHT", "DOWN", "LEFT"]
+currently_facing = "UP"
+currentPosition = [3, 1]  # Start at "Initial"
 
 def wall_detection() -> bool:
-    current_subsonic = get_distance()
-    if current_subsonic is not None and current_subsonic < PIVOT_DISTANCE:
-        return True
-    return False
+    current = get_distance()
+    return current is not None and current < PIVOT_DISTANCE
 
-def goal_artwork() -> str:
-    return ""
+def update_orientation(turn: str):
+    global currently_facing
+    idx = directions.index(currently_facing)
+    if turn == "RIGHT":
+        currently_facing = directions[(idx + 1) % 4]
+    elif turn == "LEFT":
+        currently_facing = directions[(idx - 1) % 4]
 
-def detect_artwork() -> str:
-    return cap_anal()
+def rotate_to_direction(direction_vector):
+    global currently_facing
+    direction_map = {
+        (-1, 0): "UP",
+        (1, 0): "DOWN",
+        (0, -1): "LEFT",
+        (0, 1): "RIGHT"
+    }
+    desired = direction_map.get(tuple(direction_vector))
+    if desired is None:
+        return
 
-def is_correct_position(goal_art: str) -> bool:
-    detected_art = detect_artwork()
-    print(f"Detected artwork: {detected_art}, Goal: {goal_art}")
-    if (goal_art == detected_art or 
-        goal_art == PAIRINGS.get(detected_art, "") or
-        detected_art == PAIRINGS.get(goal_art, "")):
-        return True
-    return False
+    current_index = directions.index(currently_facing)
+    desired_index = directions.index(desired)
+    delta = (desired_index - current_index) % 4
 
-def search_timeout(start_time: float) -> bool:
-    return (time.time() - start_time) > TIMEOUT_SECONDS
+    if delta == 0:
+        return
+    elif delta == 1:
+        turn_90_right()
+        update_orientation("RIGHT")
+    elif delta == 2:
+        turn_behind_left()
+        update_orientation("RIGHT")
+        update_orientation("RIGHT")
+    elif delta == 3:
+        turn_90_left()
+        update_orientation("LEFT")
 
-def travel(goal: str) -> int:
-    print("Starting travel logic...")
-    init_sensor()  # Start ultrasonic
-    start_time = time.time()
+def calculate_movement(next_loc, direction_vector, location):
+    rotate_to_direction(direction_vector)
+    if wall_detection():
+        print("Obstacle detected. Waiting...")
+        while wall_detection():
+            time.sleep(1)
 
-    try:
-        while not is_correct_position(goal):
-            if search_timeout(start_time):
-                print("Search timed out.")
-                return FAILURE
+    print("Moving forward to:", next_loc)
+    move_forward()
+    time.sleep(1)
+    motor1_stop()
+    motor2_stop()
+    global currentPosition
+    currentPosition = next_loc
 
-            distance = get_distance()
-            if distance is not None and distance < OBSTACLE_THRESHOLD:
-                print(f"Obstacle too close ({distance} cm). Pausing.")
-                motor1_stop()
-                motor2_stop()
-                while get_distance() is not None and get_distance() < OBSTACLE_THRESHOLD:
-                    time.sleep(0.2)
-                print("Obstacle cleared. Resuming.")
-            else:
+    # Arrival logic
+    if currentPosition == next_position(location):
+        wall_direction = None
+        if currentPosition == [3, 1] or currentPosition == [0, 1]:
+            wall_direction = "UP"
+        elif currentPosition[1] == 0:
+            wall_direction = "LEFT"
+        elif currentPosition[1] == 2:
+            wall_direction = "RIGHT"
+
+        if wall_direction:
+            print("Adjusting to face wall:", wall_direction)
+            target_vector = {
+                "UP": (-1, 0), "RIGHT": (0, 1),
+                "DOWN": (1, 0), "LEFT": (0, -1)
+            }[wall_direction]
+            rotate_to_direction(target_vector)
+
+        # Verification with retries
+        print("Running image verification...")
+        for attempt in range(3):
+            detected = cap_anal()
+            if detected.lower() == location.lower():
+                print("Image verification successful.")
+                break
+            print(f"Attempt {attempt + 1}: Image not matched. Adjusting position.")
+
+            if attempt == 0:
+                move_backward()
+                time.sleep(0.3)
+            elif attempt == 1:
                 move_forward()
-                time.sleep(0.5)
+                time.sleep(0.6)
 
             motor1_stop()
             motor2_stop()
 
-        print("Goal position reached.")
-        return SUCCESS
+        else:
+            print(f"WARNING: Expected '{location}' but image not confirmed after retries.")
 
+def next_position(name):
+    for i, row in enumerate(Location_matrix):
+        for j, val in enumerate(row):
+            if val == name:
+                return [i, j]
+    return None
+
+def get_to_location(location):
+    global currentPosition
+    target = next_position(location)
+    if not target:
+        print("Target location not found:", location)
+        return
+
+    while currentPosition != target:
+        direction_vector = [target[0] - currentPosition[0], target[1] - currentPosition[1]]
+        step = [0, 0]
+        if direction_vector[0] != 0:
+            step[0] = int(direction_vector[0] / abs(direction_vector[0]))
+        elif direction_vector[1] != 0:
+            step[1] = int(direction_vector[1] / abs(direction_vector[1]))
+        next_step = [currentPosition[0] + step[0], currentPosition[1] + step[1]]
+        calculate_movement(next_step, step, location)
+
+# MQTT Setup
+def on_connect(client, userdata, flags, rc):
+    print("Connected with result code", rc)
+    client.subscribe("movement")
+
+def on_message(client, userdata, msg):
+    global currentPosition, currently_facing
+    location = msg.payload.decode().strip()
+    print("Received target location:", location)
+    currentPosition = [3, 1]
+    currently_facing = "UP"
+    init_sensor()
+    try:
+        get_to_location(location)
     finally:
         stop_sensor()
 
-# MQTT setup
-MQTT_BROKER = "localhost"
-MQTT_PORT = 1883
-TOPIC_MOVEMENT = "movement"
-TOPIC_ARRIVED = "arrived"
+def start_navigation():
+    client = mqtt.Client()
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.connect("localhost", 1883, 60)
+    client.loop_forever()
 
-mqtt_client = mqtt.Client(protocol=mqtt.MQTTv311)
-goal = None
-navigation_active = False
-
-def on_movement_message(client, userdata, msg):
-    global goal, navigation_active
-    goal = msg.payload.decode()
-    navigation_active = True
-    print(f"Movement request received: {goal}")
-
-def on_connect(client, userdata, flags, rc):
-    print(f"Connected to MQTT broker with result code {rc}")
-    mqtt_client.subscribe(TOPIC_MOVEMENT)
-    mqtt_client.message_callback_add(TOPIC_MOVEMENT, on_movement_message)
-
-def start_navigation_loop():
-    global goal, navigation_active
-    mqtt_client.on_connect = on_connect
-    mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
-    mqtt_client.loop_start()
-
-    print("Navigation system initialized. Waiting for commands...")
-    while True:
-        if not navigation_active:
-            time.sleep(0.5)
-            continue
-
-        print(f"Starting navigation to: {goal}")
-        result = travel(goal)
-
-        arrival_message = f"arrived at {goal}"
-        print(f"Publishing to {TOPIC_ARRIVED}: '{arrival_message}'")
-        mqtt_client.publish(TOPIC_ARRIVED, arrival_message)
-
-        navigation_active = False
-        goal = None
-
-# Automatically start navigation loop if this script is run
 if __name__ == "__main__":
-    start_navigation_loop()
+    start_navigation()
