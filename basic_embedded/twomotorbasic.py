@@ -35,16 +35,16 @@ def motor1_forward() -> None:
     """
     Using GPIO Pins, drive motor1 forward.
     """
-    GPIO.output(IN1, GPIO.HIGH)
-    GPIO.output(IN2, GPIO.LOW)
+    GPIO.output(IN1, GPIO.LOW)
+    GPIO.output(IN2, GPIO.HIGH)
     print("Motor 1 moving forward")
 
 def motor1_backward() -> None:
     """
     Using GPIO Pins, drive motor1 backward.
     """
-    GPIO.output(IN1, GPIO.LOW)
-    GPIO.output(IN2, GPIO.HIGH)
+    GPIO.output(IN1, GPIO.HIGH)
+    GPIO.output(IN2, GPIO.LOW)
     print("Motor 1 moving backward")
 
 def motor2_forward() -> None:
