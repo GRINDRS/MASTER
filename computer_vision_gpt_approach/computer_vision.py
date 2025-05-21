@@ -29,7 +29,6 @@ def resize_and_encode_image(image_path: str, max_size:int =512):
 
 def match_image_to_artwork(encoded_image: Any, artworks: Any):
     try:
-
         artwork_lines = "\n".join([
             f"{name}: {', '.join(tags)}"
             for name, tags in artworks.items()
@@ -41,7 +40,7 @@ You will be shown an image. First, describe it in detail, noting visual features
 
 Then, compare it to this list of artworks and determine the best match, based on concept, style, and visual similarity.
 
-Only return the name of the matched artwork, or "nothing found" if there’s no good match.
+Only return the name of the matched artwork, or \"nothing found\" if there's no good match.
 
 Artworks:
 {artwork_lines}
@@ -60,10 +59,16 @@ Artworks:
         ) # type: ignore
 
         result: str = response.choices[0].message.content.strip()  # type: ignore
-        return result
+        result_lower = result.lower()
+        if "nothing found" in result_lower:
+            return "wall"
+        for name in artworks.keys():
+            if name.lower() in result_lower:
+                return name
+        return "wall"
     except Exception as e:
         print(f"[ERROR] OpenAI API failed: {e}")
-        return "nothing found"
+        return "wall"
 
 if __name__ == "__main__":
     artworks = {
