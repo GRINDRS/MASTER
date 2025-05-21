@@ -8,6 +8,9 @@ Proprietary software by GRINDRS - Ideas First; Innovation Later.
 import math
 import time
 import paho.mqtt.client as mqtt
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from basic_embedded.twomotorbasic import move_forward, move_backward, \
                                        turn_right, motor1_stop, motor2_stop
 from basic_embedded.ultrasonic_sensor import init_sensor, stop_sensor, get_distance
