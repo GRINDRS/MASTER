@@ -25,7 +25,7 @@ sleep 2
 
 # Start the main system in the background
 echo "Starting main navigation system..."
-python3 main.py &
+python3 navigation/navigation.py &
 MAIN_PID=$!
 
 # Start the voicebot in the background
