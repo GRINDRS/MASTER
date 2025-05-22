@@ -68,4 +68,4 @@ def cap_anal() -> str:
         print(f"[ERROR] {e}")
         sys.exit(1)
 
-    
+cap_anal()    
