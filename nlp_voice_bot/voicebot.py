@@ -208,30 +208,6 @@ def answer_question(exhibit: str, question: str) -> str:
         ]
     ).choices[0].message.content.strip()
 
-def propose_exhibit(unvisited: list[str]) -> str | None:
-    if not unvisited:
-        return None
-    while unvisited:
-        choice = random.choice(unvisited)
-        speak(f"How about we head to the {choice}? How does that sound?")
-        reply = listen_to_user()
-
-        if wants_to_end(reply):
-            return None
-        if wants_yes(reply):
-            return choice        
-        unvisited.remove(choice)
-        if unvisited:
-            speak("No problem, let me suggest another option.")
-    return None
-
-def end_tour() -> None:
-    speak("Thanks for visiting! I hope you enjoy the rest of your day at the museum.")
-    send_movement_command("initial")
-    if mqtt_connected and mqtt_client:
-        mqtt_client.disconnect()
-    raise SystemExit
-
 def choose_locs(text: str) -> list[str]:
     exhibit_list = ", ".join(f"{e['keyword']} ({e['location']})" for e in EXHIBITS)
     reply = client.chat.completions.create(
@@ -243,6 +219,30 @@ def choose_locs(text: str) -> list[str]:
         ]
     ).choices[0].message.content.strip()
     return [] if reply.lower() == "none" else [loc.strip() for loc in reply.split(",")]
+
+def propose_exhibit(unvisited: list[str]) -> str | None:
+    if not unvisited:
+        return None
+    while unvisited:
+        choice = random.choice(unvisited)
+        speak(f"How about we head to the {choice}? How does that sound?")
+        reply = listen_to_user()
+
+        if wants_to_end(reply):
+            return None
+        if wants_yes(reply):
+            return choice
+        unvisited.remove(choice)
+        if unvisited:
+            speak("No problem, let me suggest another option.")
+    return None
+
+def end_tour() -> None:
+    speak("Thanks for visiting! I hope you enjoy the rest of your day at the museum.")
+    send_movement_command("initial")
+    if mqtt_connected and mqtt_client:
+        mqtt_client.disconnect()
+    raise SystemExit
 
 # MAIN PROGRAM STARTS HERE
 def main():
@@ -321,8 +321,7 @@ def main():
                     upcoming.append(pick)
                 else:
                     cand = [loc for loc in choose_locs(nxt) if loc not in visited]
-                    upcoming.extend(cand or
-                                   [random.choice([e["location"] for e in EXHIBITS if e["location"] not in visited])])
+                    upcoming.extend(cand or [random.choice([e["location"] for e in EXHIBITS if e["location"] not in visited])])
 
 # Start the main program
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ import cv2
 from computer_vision_gpt_approach.computer_vision import  \
     resize_and_encode_image, match_image_to_artwork
 
-# Updated ARTWORKS dict (using long exhibit names) for compatibility with voicebot.py and computer_vision.py
+# Dictionary mapping long exhibit names to sets of vision tags
 ARTWORKS = {
     "The Scream by Edvard Munch": {
         "the scream", "edvard munch", "screaming figure", "hands on face",
@@ -68,4 +68,6 @@ def cap_anal() -> str:
         print(f"[ERROR] {e}")
         sys.exit(1)
 
-cap_anal()    
+# If run directly, execute a test capture
+if __name__ == "__main__":
+    cap_anal()    
