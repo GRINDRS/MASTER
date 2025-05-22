@@ -18,7 +18,7 @@ options = ["Mia", "May"]
 answers = []
 
 # Path to JSON file used for shared data
-spoke_path = "web/spoke.json"
+spoke_path = "spoke.json"
 
 def load_json(name):
     """
@@ -94,7 +94,10 @@ def frame():
     Capture a single frame from the camera and return it as a JPEG image.
     """
     try:
-        frame = cap.get(cv2.cv.CV_CAP_PROP_POS_FRAMES)
+        success, frame = cap.read()
+        if not success:
+            return "Failed to capture image", 500
+        img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         # Convert OpenCV image (BGR) to PIL Image (RGB)
         img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         buf = io.BytesIO()
