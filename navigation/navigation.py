@@ -1,7 +1,7 @@
 
 """
 SuperSimpleNAVigation 
-    by Tristan Green
+
 
 Proprietary software by GRINDRS - Ideas First; Innovation Later.
 """
@@ -12,7 +12,8 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from basic_embedded.twomotorbasic import move_forward, move_backward, \
-                                       turn_right, motor1_stop, motor2_stop
+                                       turn_right, motor1_stop, motor2_stop,
+                                       turn_90_left, turn_90_right
 from basic_embedded.ultrasonic_sensor import init_sensor, stop_sensor, get_distance
 from capture_analyse import cap_anal
 
@@ -78,7 +79,7 @@ def travel(goal: str) -> int:
 
                 if visual_output.strip().lower() == "wall":
                     print("Wall detected. Turning right.")
-                    turn_right(NINETY_DEG)
+                    turn_90_right()
                 else:
                     print("Not a wall. Waiting...")
                     while get_distance() != 999 and get_distance() <= OBSTACLE_THRESHOLD:
