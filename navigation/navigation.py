@@ -25,15 +25,14 @@ OBSTACLE_THRESHOLD = 30.0
 
 # Grid Layout
 Location_matrix = [
-    [0, 'mona lisa', 0],
-    ['scream', 0, 'sunflowers'],
+    ['scream', 'mona lisa', 'sunflowers'],
     ['dog', 0, 'egyptian'],
-    ['liberty', 'initial', 'starry night']
+    ['liberty', "initial", 'starry night'],
 ]
 
 directions = ["UP", "RIGHT", "DOWN", "LEFT"]
 currently_facing = "UP"
-currentPosition = [3, 1]  # Start at "Initial"
+currentPosition = [2, 1]  # Start at "Initial"
 
 def wall_detection() -> bool:
     current = get_distance()
@@ -85,7 +84,7 @@ def calculate_movement(next_loc, direction_vector, location):
 
     print("Moving forward to:", next_loc)
     move_forward()
-    time.sleep(1)
+    time.sleep(4.75)
     motor1_stop()
     motor2_stop()
     global currentPosition
