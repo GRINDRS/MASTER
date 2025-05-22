@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GalleryBot Live Stream</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f9f9fb;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: #1e1e2f;
+            margin-bottom: 30px;
+        }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 40px;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .text-box {
+            flex: 1 1 400px;
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+            font-size: 1.05rem;
+            line-height: 1.7;
+        }
+
+        .text-box strong {
+            color: #444;
+        }
+
+        .text-box ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .video-container {
+            flex: 0 1 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        }
+
+        img {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            border-radius: 12px;
+            border: 2px solid #ddd;
+        }
+
+        footer {
+            margin-top: 60px;
+            font-size: 0.9rem;
+            color: #777;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+
+            .container {
+                flex-direction: column;
+                align-items: center;
+                gap: 20px;
+            }
+
+            .video-container,
+            .text-box {
+                width: 100%;
+                max-width: 100%;
+            }
+        }
+    </style>
+    <meta http-equiv="refresh" content="5">
+</head>
+<body>
+    <h1>🎨 Live GalleryBot Stream</h1>
+    <div class="container">
+        <div class="text-box">
+            <p>
+                <strong>You said:</strong><br>
+                {{ spoke.user }}<br><br>
+
+                <strong>The bot said:</strong><br>
+                {{ spoke.response }}<br><br>
+
+                <strong>Been to:</strong>
+                <ul>
+                    {% for work in spoke.been_to %}
+                        <li>{{ work }}</li>
+                    {% endfor %}
+                </ul><br>
+
+                <strong>Going to:</strong>
+                <ul>
+                    {% for work in spoke.going_to %}
+                        <li>{{ work }}</li>
+                    {% endfor %}
+                </ul>
+            </p>
+        </div>
+        <div class="video-container">
+            <img src="{{ url_for('video') }}" alt="Live Stream">
+        </div>
+    </div>
+    <footer>
+        &copy; 2025 GalleryBot — Powered by Raspberry Pi & OpenAI
+    </footer>
+</body>
+</html>
+
+</html>

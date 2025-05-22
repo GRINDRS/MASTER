@@ -1,5 +1,6 @@
 import sys
-import cv2
+import requests
+import base64
 from computer_vision_gpt_approach.computer_vision import  \
     resize_and_encode_image, match_image_to_artwork
 
@@ -40,29 +41,14 @@ ARTWORKS = {
     }
 }
 
-def cap_anal() -> str:
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("[ERROR] Cannot access webcam")
-        sys.exit(1)
-
-    ret, frame = cap.read()
-    if not ret:
-        print("[ERROR] Failed to capture frame")
-        sys.exit(1)
-
-    filename = "frame.jpg"
-    cv2.imwrite(filename, frame)
-    print("[INFO] Frame captured. Analyzing...")
-    
+def cap_anal():
+    response = requests.get("http://127.0.0.1:5000/frame.jpg")
     try:
-        encoded = resize_and_encode_image(filename)
-        match = match_image_to_artwork(encoded, ARTWORKS)
-        print(f"[RESULT] Matched artwork: {match}")
-        cap.release()
-        cv2.destroyAllWindows()
-        
-        return match
+        if response.status_code == 200:
+            encoded_image = base64.b64encode(response.content).decode('utf-8')
+            match = match_image_to_artwork(encoded_image, ARTWORKS)
+            print(f"[RESULT] Matched artwork: {match}")
+            return match
 
     except Exception as e:
         print(f"[ERROR] {e}")
