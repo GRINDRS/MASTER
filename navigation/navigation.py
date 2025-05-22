@@ -25,10 +25,10 @@ OBSTACLE_THRESHOLD = 30.0
 
 # Grid Layout
 Location_matrix = [
-    [0, 'Mona Lisa', 0],
-    ['Scream', 0, 'Sunflower'],
-    ['Dog', 0, 'Egyptian'],
-    ['Liberty', 'Initial', 'Starry Night']
+    [0, 'mona lisa', 0],
+    ['scream', 0, 'sunflowers'],
+    ['dog', 0, 'egyptian'],
+    ['liberty', 'initial', 'starry night']
 ]
 
 directions = ["UP", "RIGHT", "DOWN", "LEFT"]
