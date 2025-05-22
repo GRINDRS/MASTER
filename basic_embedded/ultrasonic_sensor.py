@@ -10,7 +10,7 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setup(TRIG, GPIO.OUT)
 GPIO.setup(ECHO, GPIO.IN)
 
-_latest_distance = None
+_latest_distance = 999 
 _lock = threading.Lock()
 _thread = None
 _running = False

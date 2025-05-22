@@ -57,7 +57,7 @@ def search_timeout(start_time: float) -> bool:
 
 def travel(goal: str) -> int:
     print("Starting travel logic...")
-    init_sensor()  # Start ultrasonic
+    init_sensor()
     start_time = time.time()
 
     try:
@@ -67,13 +67,24 @@ def travel(goal: str) -> int:
                 return FAILURE
 
             distance = get_distance()
-            if distance < OBSTACLE_THRESHOLD:
-                print(f"Obstacle too close ({distance} cm). Pausing.")
+            if distance != 999 and distance < OBSTACLE_THRESHOLD:
+                print(f"Obstacle too close ({distance} cm). Checking visual...")
+
                 motor1_stop()
                 motor2_stop()
-                while get_distance() <= OBSTACLE_THRESHOLD:
-                    time.sleep(0.2)
-                print("Obstacle cleared. Resuming.")
+
+                visual_output = cap_anal()
+                print(f"Visual detection result: {visual_output}")
+
+                if visual_output.strip().lower() == "wall":
+                    print("Wall detected. Turning right.")
+                    turn_right(NINETY_DEG)
+                else:
+                    print("Not a wall. Waiting...")
+                    while get_distance() != 999 and get_distance() <= OBSTACLE_THRESHOLD:
+                        time.sleep(0.2)
+
+                print("Resuming movement.")
             else:
                 move_forward()
                 time.sleep(3)
