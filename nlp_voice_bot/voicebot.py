@@ -8,6 +8,7 @@ from gtts import gTTS
 from openai import OpenAI
 from dotenv import load_dotenv
 import threading
+import json
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -52,12 +53,64 @@ GUIDED_TOUR = [
 ]
 
 # --------------------------------------------------
+# WEB/NLP SHARED DATA (spoke.json)
+# --------------------------------------------------
+
+SPOKE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "web", "spoke.json"))
+
+
+def _load_spoke() -> dict:
+    if os.path.exists(SPOKE_PATH):
+        try:
+            with open(SPOKE_PATH, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass  # fall through to empty
+    return {}
+
+
+def _save_spoke(data: dict):
+    try:
+        with open(SPOKE_PATH, "w") as f:
+            json.dump(data, f, indent=4)
+    except Exception as e:
+        print(f"Could not write spoke.json → {e}")
+
+
+# Keep track of visited & upcoming exhibits globally so they can be surfaced to the UI
+visited_global: list[str] = []
+upcoming_global: list[str] = []
+
+
+def update_spoke(*, user: str | None = None, response: str | None = None):
+    """Update the shared JSON file that the web layer reads."""
+
+    data = _load_spoke()
+
+    if user is not None:
+        data["user"] = user
+    if response is not None:
+        data["response"] = response
+
+    if current_location:
+        data["current"] = current_location
+
+    if visited_global:
+        data["been_to"] = visited_global.copy()
+    if upcoming_global:
+        data["going_to"] = upcoming_global.copy()
+
+    _save_spoke(data)
+
+# --------------------------------------------------
 # I/O HELPERS
 # --------------------------------------------------
 
 def speak(text: str):
     """TTS output + console log."""
     print("Bot:", text)
+    # Update shared JSON with bot response
+    update_spoke(response=text)
     try:
         tts = gTTS(text=text, lang="en")
         tts.save("output.mp3")
@@ -78,9 +131,11 @@ def listen_to_user() -> str | None:
             audio = recognizer.listen(source, timeout=6, phrase_time_limit=20)
             text = recognizer.recognize_google(audio)
             print("You said:", text)
+            update_spoke(user=text)
             return text
         except Exception as e:
             print("Error:", e)
+            speak("Sorry, I didn't understand that.")
             return None
 
 # --------------------------------------------------
@@ -212,7 +267,10 @@ def answer_question(exhibit: str, question: str) -> str:
 
 
 def choose_locs(text: str) -> list[str]:
-    lower = text.lower() if text else ""
+    if not text:
+        return []
+
+    lower = text.lower()
     matches = [e["location"] for e in EXHIBITS if e["keyword"] in lower]
     if matches:
         return matches[:3]
@@ -269,14 +327,25 @@ def q_and_a_loop(location: str):
 # --------------------------------------------------
 
 def guided_tour_flow():
-    for loc in GUIDED_TOUR:
+    global visited_global, upcoming_global
+    visited_global = []
+    upcoming_global = GUIDED_TOUR.copy()
+    for idx, loc in enumerate(GUIDED_TOUR):
+        current_remaining = GUIDED_TOUR[idx + 1:]
+        upcoming_global = current_remaining.copy()
+        update_spoke()
+
         navigate_to(loc)
+        visited_global.append(loc)
+        update_spoke()
+
         q_and_a_loop(loc)
     # finished tour
     end_tour()
 
 
 def free_roam_flow():
+    global visited_global, upcoming_global
     visited: set[str] = set()
 
     # Ask for first destination
@@ -292,7 +361,25 @@ def free_roam_flow():
     else:
         dests = choose_locs(first) or [GUIDED_TOUR[0]]
 
+    # Keep the upcoming list in sync
+    upcoming_global = dests.copy()
+
     while True:
+        # If there is no planned destination, prompt the visitor until we get one.
+        if not dests:
+            speak("Where would you like to go next? You can also say 'stop' to finish your tour.")
+            nxt = listen_to_user()
+            if wants_to_end(nxt):
+                end_tour()
+            if not nxt:
+                speak("Sorry, I didn't quite catch that.")
+                continue  # ask again
+
+            dests.extend(choose_locs(nxt) or [random.choice([e['location'] for e in EXHIBITS if e['location'] not in visited])])
+            upcoming_global = dests.copy()
+            update_spoke()
+            continue  # Loop will now navigate to the new destination
+
         location = dests.pop(0)
         if location in visited:
             if not dests:
@@ -306,12 +393,25 @@ def free_roam_flow():
         navigate_to(location)
         visited.add(location)
 
+        # Update global tracking lists and JSON after visiting
+        visited_global = list(visited)
+        upcoming_global = dests.copy()
+        update_spoke()
+
         # In free-roam mode we skip the detailed Q&A prompt and ask directly for the next destination.
-        speak("Where would you like to go next? You can also say 'stop' to finish your tour.")
         nxt = listen_to_user()
         if wants_to_end(nxt):
             end_tour()
+
+        if not nxt:
+            speak("Sorry, I didn't quite catch that.")
+            # The loop will re-prompt at the top if dests is empty.
+            continue
+
         dests.extend(choose_locs(nxt) or [random.choice([e['location'] for e in EXHIBITS if e['location'] not in visited])])
+
+        upcoming_global = dests.copy()
+        update_spoke()
 
 # --------------------------------------------------
 # MAIN

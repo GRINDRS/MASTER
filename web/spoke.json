@@ -1,7 +1,12 @@
 {
-    "user" : "I would like to know the weather in New York City.",
-    "response" : "blah blah blah blah blah blah blah blah",
-    "current" : "Mona Lisa",
-    "been_to" :["Waterlillies", "The Starry Night"],
-    "going_to" : ["The Last Supper", "The Scream"]
+    "user": "I didn't quite catch that let's do the guided tour to get started you can always switch to free roam later",
+    "response": "Hi! Welcome to the museum. Would you like a guided tour or would you prefer to roam freely at your own pace?",
+    "current": "Mona Lisa by Leonardo da Vinci",
+    "been_to": [
+        "Mona Lisa by Leonardo da Vinci"
+    ],
+    "going_to": [
+        "Starry Night by Vincent van Gogh",
+        "The Scream by Edvard Munch"
+    ]
 }
