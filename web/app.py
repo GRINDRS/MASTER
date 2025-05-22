@@ -94,14 +94,7 @@ def frame():
     Capture a single frame from the camera and return it as a JPEG image.
     """
     try:
-        temp_cap = cv2.VideoCapture(0)
-        if not temp_cap.isOpened():
-            return "Camera error", 500
-        success, frame = temp_cap.read()
-        temp_cap.release()
-        if not success:
-            return "Frame capture failed", 500
-
+        frame = cap.get(cv2.cv.CV_CAP_PROP_POS_FRAMES)
         # Convert OpenCV image (BGR) to PIL Image (RGB)
         img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         buf = io.BytesIO()

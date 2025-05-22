@@ -41,10 +41,7 @@ ARTWORKS = {
 }
 
 def cap_anal():
-    #connect to webpage 
     response = requests.get("http://127.0.0.1:5000/frame.jpg")
-    print("hello")
-    
     try:
         if response.status_code == 200:
             encoded_image = base64.b64encode(response.content).decode('utf-8')
@@ -56,3 +53,4 @@ def cap_anal():
         print(f"[ERROR] {e}")
         sys.exit(1)
 
+cap_anal()
