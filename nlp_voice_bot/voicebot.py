@@ -90,20 +90,18 @@ def wants_to_end(text: str | None) -> bool:
     return bool(text) and _contains(text, END_WORDS)
 
 # MQTT callback handlers
-def on_connect(client, userdata, flags, rc):
+def on_connect(client, userdata, flags, reason_code, properties=None):
     global mqtt_connected
-    print(f"MQTT: Connected with result code {rc}")
-    if rc == 0:
+
+    print(f"MQTT: Connected with result code {reason_code}")
+    if reason_code == 0:
         mqtt_connected = True
-        # Make sure we're subscribed to the arrived topic
         result = client.subscribe(TOPIC_ARRIVED)
         print(f"MQTT: Subscribed to {TOPIC_ARRIVED}, result: {result}")
-        
-        # Add a specific message callback for the arrived topic
         client.message_callback_add(TOPIC_ARRIVED, on_arrived_message)
         print("MQTT: Added specific callback for arrival messages")
     else:
-        print(f"MQTT: Failed to connect, result code: {rc}")
+        print(f"MQTT: Failed to connect, result code: {reason_code}")
 
 def on_arrived_message(client, userdata, msg):
     """Specific callback for arrival messages"""
@@ -145,7 +143,11 @@ def setup_mqtt():
     
     try:
         print("MQTT: Setting up client...")
-        mqtt_client = mqtt.Client(protocol=mqtt.MQTTv311)
+        mqtt_client = mqtt.Client(
+            client_id="museum-voicebot",
+            protocol=mqtt.MQTTv311,
+            callback_api_version=5
+        )
         mqtt_client.on_connect = on_connect
         mqtt_client.on_message = on_message
         
