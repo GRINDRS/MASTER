@@ -162,18 +162,13 @@ def setup_mqtt():
 
 def send_movement_command(location: str) -> None:
     global waiting_for_arrival, mqtt_client, mqtt_connected
-    
-    # Simplify location string for navigation - use only the first part before "by" if it exists
-    nav_location = location.split(" by ")[0].lower()
-    print(f"Navigation: Requesting movement to '{nav_location}'")
+    print(f"Navigation: Requesting movement to '{location}'")
     waiting_for_arrival = True
-    
     if mqtt_connected and mqtt_client:
         try:
-            print(f"MQTT: Publishing to {TOPIC_MOVEMENT}: {nav_location}")
-            mqtt_client.publish(TOPIC_MOVEMENT, nav_location)
+            print(f"MQTT: Publishing to {TOPIC_MOVEMENT}: {location}")
+            mqtt_client.publish(TOPIC_MOVEMENT, location)
             print("MQTT: Message sent, waiting for arrival...")
-            # No simulation fallback - wait for real navigation
         except Exception as e:
             print(f"MQTT: Publish failed: {e}")
             print("MQTT: Falling back to simulation ONLY because publishing failed...")

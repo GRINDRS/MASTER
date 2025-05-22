@@ -1,4 +1,3 @@
-
 """
 Integrated Grid-Based Navigation with Optimized Turning and Image Verification
 """
@@ -23,11 +22,11 @@ from capture_analyse import cap_anal
 PIVOT_DISTANCE = 30.0
 OBSTACLE_THRESHOLD = 30.0
 
-# Grid Layout
+# Updated Location_matrix (using long exhibit names) for compatibility with voicebot (which now sends the long exhibit name) and capture_analyse (which uses the long exhibit name for image verification)
 Location_matrix = [
-    ['scream', 'mona lisa', 'sunflowers'],
-    ['dog', 0, 'egyptian'],
-    ['liberty', "initial", 'starry night'],
+    ["The Scream by Edvard Munch", "Mona Lisa by Leonardo da Vinci", "Sunflowers by Vincent van Gogh"],
+    ["Plushy Dog Sculpture", 0, "Ancient Egyptian Statue"],
+    ["Liberty Leading the People by Eugène Delacroix", "initial", "Starry Night by Vincent van Gogh"]
 ]
 
 directions = ["UP", "RIGHT", "DOWN", "LEFT"]
@@ -112,7 +111,7 @@ def calculate_movement(next_loc, direction_vector, location):
         print("Running image verification...")
         for attempt in range(3):
             detected = cap_anal()
-            if detected.lower() == location.lower():
+            if detected == location:
                 print("Image verification successful.")
                 break
             print(f"Attempt {attempt + 1}: Image not matched. Adjusting position.")
@@ -161,7 +160,7 @@ def on_connect(client, userdata, flags, rc):
 
 def on_message(client, userdata, msg):
     global currentPosition, currently_facing
-    location = msg.payload.decode().strip()
+    location = msg.payload.decode()
     print("Received target location:", location)
     currentPosition = [3, 1]
     currently_facing = "UP"
