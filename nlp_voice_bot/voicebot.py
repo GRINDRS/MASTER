@@ -135,7 +135,6 @@ def listen_to_user() -> str | None:
             return text
         except Exception as e:
             print("Error:", e)
-            speak("Sorry, I didn't understand that.")
             return None
 
 # --------------------------------------------------
@@ -148,6 +147,11 @@ END_WORDS   = {"done", "stop", "that's all", "end", "quit", "exit", "finished"}
 GUIDED_WORDS= {"guided", "guide", "tour"}
 FREE_WORDS  = {"free", "roam", "myself", "alone"}
 
+# Expressions indicating the visitor is unsure where to go.
+UNCERTAIN_PHRASES = {
+    "don't know", "not sure", "not really sure", "idk",
+    "no idea", "you decide", "surprise me", "unsure"
+}
 
 def _contains(text: str, words: set[str]) -> bool:
     t = text.lower() if text else ""
@@ -354,7 +358,7 @@ def free_roam_flow():
     if wants_to_end(first):
         end_tour()
 
-    if not first or _contains(first, {"don't know", "not sure", "idk"}):
+    if is_uncertain(first):
         # Visitor is unsure – default to the Mona Lisa and let them know
         speak("No worries – let's start with the Mona Lisa and see how we go from there.")
         dests = [GUIDED_TOUR[0]]  # default Mona Lisa
@@ -371,7 +375,7 @@ def free_roam_flow():
             nxt = listen_to_user()
             if wants_to_end(nxt):
                 end_tour()
-            if not nxt:
+            if not nxt or is_uncertain(nxt):
                 speak("Sorry, I didn't quite catch that.")
                 continue  # ask again
 
@@ -387,7 +391,10 @@ def free_roam_flow():
                 nxt = listen_to_user()
                 if wants_to_end(nxt):
                     end_tour()
-                dests.extend(choose_locs(nxt) or [random.choice([e['location'] for e in EXHIBITS if e['location'] not in visited])])
+                if is_uncertain(nxt):
+                    dests.extend([random.choice([e['location'] for e in EXHIBITS if e['location'] not in visited])])
+                else:
+                    dests.extend(choose_locs(nxt) or [random.choice([e['location'] for e in EXHIBITS if e['location'] not in visited])])
             continue
 
         navigate_to(location)
@@ -398,12 +405,16 @@ def free_roam_flow():
         upcoming_global = dests.copy()
         update_spoke()
 
-        # In free-roam mode we skip the detailed Q&A prompt and ask directly for the next destination.
+        # Offer the visitor a chance to ask questions about the exhibit.
+        q_and_a_loop(location)
+
+        # Then ask where to go next.
+        speak("Where would you like to go next? You can also say 'stop' to finish your tour.")
         nxt = listen_to_user()
         if wants_to_end(nxt):
             end_tour()
 
-        if not nxt:
+        if not nxt or is_uncertain(nxt):
             speak("Sorry, I didn't quite catch that.")
             # The loop will re-prompt at the top if dests is empty.
             continue
@@ -412,6 +423,30 @@ def free_roam_flow():
 
         upcoming_global = dests.copy()
         update_spoke()
+
+# --------------------------------------------------
+# UNCERTAINTY HELPER
+# --------------------------------------------------
+
+def is_uncertain(text: str | None) -> bool:
+    """Return True when the user indicates they don't have a specific choice.
+
+    The check is fuzzy and captures variations like "I'm not *really* sure" by
+    looking for the words *not* and *sure* appearing anywhere in the sentence
+    as well as several explicit phrases.
+    """
+
+    if not text:
+        return True  # silence counts as unsure
+
+    t = text.lower()
+
+    # Direct phrase match
+    if any(p in t for p in UNCERTAIN_PHRASES):
+        return True
+
+    # Heuristic: both "not" and "sure" appear (any order, words in-between OK)
+    return "not" in t and "sure" in t
 
 # --------------------------------------------------
 # MAIN
