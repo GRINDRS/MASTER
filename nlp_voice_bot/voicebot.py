@@ -160,14 +160,19 @@ def setup_mqtt():
         print(f"MQTT: Setup failed with error: {e}")
         return False
 
+# Utility: map keyword to full location if keyword provided
+def to_location(name: str) -> str:
+    return next((e["location"] for e in EXHIBITS if e["keyword"] == name.lower()), name)
+
 def send_movement_command(location: str) -> None:
     global waiting_for_arrival, mqtt_client, mqtt_connected
-    print(f"Navigation: Requesting movement to '{location}'")
+    full_location = to_location(location)
+    print(f"Navigation: Requesting movement to '{full_location}'")
     waiting_for_arrival = True
     if mqtt_connected and mqtt_client:
         try:
-            print(f"MQTT: Publishing to {TOPIC_MOVEMENT}: {location}")
-            mqtt_client.publish(TOPIC_MOVEMENT, location)
+            print(f"MQTT: Publishing to {TOPIC_MOVEMENT}: {full_location}")
+            mqtt_client.publish(TOPIC_MOVEMENT, full_location)
             print("MQTT: Message sent, waiting for arrival...")
         except Exception as e:
             print(f"MQTT: Publish failed: {e}")
@@ -193,17 +198,19 @@ def wait_for_arrival():
     print(f"Navigation: Arrived at {current_location}")
 
 def exhibit_summary(name: str) -> str:
+    long_name = to_location(name)
     return client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "system",
-                   "content": f"You are a museum guide. Provide a warm, engaging 2-3 sentence summary about the exhibit '{name}'."}]
+                   "content": f"You are a museum guide. Provide a warm, engaging 2-3 sentence summary about the exhibit '{long_name}'."}]
     ).choices[0].message.content.strip()
 
 def answer_question(exhibit: str, question: str) -> str:
+    long_exhibit = to_location(exhibit)
     return client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": f"You are a museum guide at '{exhibit}'. Answer visitor questions clearly but concisely."},
+            {"role": "system", "content": f"You are a museum guide at '{long_exhibit}'. Answer visitor questions clearly but concisely."},
             {"role": "user", "content": question}
         ]
     ).choices[0].message.content.strip()
@@ -225,7 +232,11 @@ def choose_locs(text: str) -> list[str]:
             {"role": "user", "content": text}
         ]
     ).choices[0].message.content.strip()
-    return [] if reply.lower() == "none" else [loc.strip() for loc in reply.split(",")]
+    if reply.lower() == "none":
+        return []
+    raw = [loc.strip() for loc in reply.split(",")]
+    # Convert any keywords to locations
+    return [to_location(x) for x in raw]
 
 def propose_exhibit(unvisited: list[str]) -> str | None:
     if not unvisited:
