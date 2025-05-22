@@ -18,8 +18,8 @@ from capture_analyse import cap_anal
 
 NINETY_DEG = 0.5
 TIMEOUT_SECONDS = 90
-PIVOT_DISTANCE = 20.0
-OBSTACLE_THRESHOLD = 15.0
+PIVOT_DISTANCE = 30.00
+OBSTACLE_THRESHOLD = 30.00
 
 PAIRINGS: dict[str, str] = {
     "Mona Lisa": "Toy Dog",
@@ -67,16 +67,16 @@ def travel(goal: str) -> int:
                 return FAILURE
 
             distance = get_distance()
-            if distance is not None and distance < OBSTACLE_THRESHOLD:
+            if distance < OBSTACLE_THRESHOLD:
                 print(f"Obstacle too close ({distance} cm). Pausing.")
                 motor1_stop()
                 motor2_stop()
-                while get_distance() is not None and get_distance() < OBSTACLE_THRESHOLD:
+                while get_distance() <= OBSTACLE_THRESHOLD:
                     time.sleep(0.2)
                 print("Obstacle cleared. Resuming.")
             else:
                 move_forward()
-                time.sleep(0.5)
+                time.sleep(3)
 
             motor1_stop()
             motor2_stop()

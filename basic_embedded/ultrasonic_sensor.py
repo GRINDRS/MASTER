@@ -1,7 +1,7 @@
-
 import RPi.GPIO as GPIO
 import time
 import threading
+import math
 
 TRIG = 5  # GPIO 5
 ECHO = 6  # GPIO 6
@@ -23,12 +23,12 @@ def _read_distance(timeout=0.02):
     start_time = time.time()
     while GPIO.input(ECHO) == 0:
         if time.time() - start_time > timeout:
-            return None
+            return 999
     start = time.time()
 
     while GPIO.input(ECHO) == 1:
         if time.time() - start > timeout:
-            return None
+            return 999
     end = time.time()
 
     duration = end - start
