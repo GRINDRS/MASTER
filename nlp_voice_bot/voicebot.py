@@ -160,20 +160,20 @@ def setup_mqtt():
         print(f"MQTT: Setup failed with error: {e}")
         return False
 
+# Utility: map keyword to full location if keyword provided
+def to_location(name: str) -> str:
+    return next((e["location"] for e in EXHIBITS if e["keyword"] == name.lower()), name)
+
 def send_movement_command(location: str) -> None:
     global waiting_for_arrival, mqtt_client, mqtt_connected
-    
-    # Simplify location string for navigation - use only the first part before "by" if it exists
-    nav_location = location.split(" by ")[0].lower()
-    print(f"Navigation: Requesting movement to '{nav_location}'")
+    full_location = to_location(location)
+    print(f"Navigation: Requesting movement to '{full_location}'")
     waiting_for_arrival = True
-    
     if mqtt_connected and mqtt_client:
         try:
-            print(f"MQTT: Publishing to {TOPIC_MOVEMENT}: {nav_location}")
-            mqtt_client.publish(TOPIC_MOVEMENT, nav_location)
+            print(f"MQTT: Publishing to {TOPIC_MOVEMENT}: {full_location}")
+            mqtt_client.publish(TOPIC_MOVEMENT, full_location)
             print("MQTT: Message sent, waiting for arrival...")
-            # No simulation fallback - wait for real navigation
         except Exception as e:
             print(f"MQTT: Publish failed: {e}")
             print("MQTT: Falling back to simulation ONLY because publishing failed...")
@@ -198,20 +198,45 @@ def wait_for_arrival():
     print(f"Navigation: Arrived at {current_location}")
 
 def exhibit_summary(name: str) -> str:
+    long_name = to_location(name)
     return client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "system",
-                   "content": f"You are a museum guide. Provide a warm, engaging 2-3 sentence summary about the exhibit '{name}'."}]
+                   "content": f"You are a museum guide. Provide a warm, engaging 2-3 sentence summary about the exhibit '{long_name}'."}]
     ).choices[0].message.content.strip()
 
 def answer_question(exhibit: str, question: str) -> str:
+    long_exhibit = to_location(exhibit)
     return client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": f"You are a museum guide at '{exhibit}'. Answer visitor questions clearly but concisely."},
+            {"role": "system", "content": f"You are a museum guide at '{long_exhibit}'. Answer visitor questions clearly but concisely."},
             {"role": "user", "content": question}
         ]
     ).choices[0].message.content.strip()
+
+def choose_locs(text: str) -> list[str]:
+    # First try simple keyword matching for robustness
+    lower_text = text.lower()
+    matches = [e["location"] for e in EXHIBITS if e["keyword"] in lower_text]
+    if matches:
+        return matches[:3]
+
+    # Fallback to LLM-based selection
+    exhibit_list = ", ".join(f"{e['keyword']} ({e['location']})" for e in EXHIBITS)
+    reply = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system",
+             "content": f"Choose up to 3 exhibit LOCATIONS matching the user's interest from: {exhibit_list}. Return a comma-separated list or 'none'."},
+            {"role": "user", "content": text}
+        ]
+    ).choices[0].message.content.strip()
+    if reply.lower() == "none":
+        return []
+    raw = [loc.strip() for loc in reply.split(",")]
+    # Convert any keywords to locations
+    return [to_location(x) for x in raw]
 
 def propose_exhibit(unvisited: list[str]) -> str | None:
     if not unvisited:
@@ -224,7 +249,7 @@ def propose_exhibit(unvisited: list[str]) -> str | None:
         if wants_to_end(reply):
             return None
         if wants_yes(reply):
-            return choice        
+            return choice
         unvisited.remove(choice)
         if unvisited:
             speak("No problem, let me suggest another option.")
@@ -236,18 +261,6 @@ def end_tour() -> None:
     if mqtt_connected and mqtt_client:
         mqtt_client.disconnect()
     raise SystemExit
-
-def choose_locs(text: str) -> list[str]:
-    exhibit_list = ", ".join(f"{e['keyword']} ({e['location']})" for e in EXHIBITS)
-    reply = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system",
-             "content": f"Choose up to 3 exhibit LOCATIONS matching the user's interest from: {exhibit_list}. Return a comma-separated list or 'none'."},
-            {"role": "user", "content": text}
-        ]
-    ).choices[0].message.content.strip()
-    return [] if reply.lower() == "none" else [loc.strip() for loc in reply.split(",")]
 
 # MAIN PROGRAM STARTS HERE
 def main():
@@ -326,8 +339,7 @@ def main():
                     upcoming.append(pick)
                 else:
                     cand = [loc for loc in choose_locs(nxt) if loc not in visited]
-                    upcoming.extend(cand or
-                                   [random.choice([e["location"] for e in EXHIBITS if e["location"] not in visited])])
+                    upcoming.extend(cand or [random.choice([e["location"] for e in EXHIBITS if e["location"] not in visited])])
 
 # Start the main program
 if __name__ == "__main__":

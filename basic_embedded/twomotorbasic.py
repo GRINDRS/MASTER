@@ -25,8 +25,8 @@ GPIO.setup(ENB, GPIO.OUT)  # Enable pin for motor 2
 # Set the motor speeds (using PWM on ENA and ENB)
 pwmA = GPIO.PWM(ENA, 1000)  # 1000 Hz frequency for motor 1
 pwmB = GPIO.PWM(ENB, 1000)  # 1000 Hz frequency for motor 2
-pwmA.start(50)  # Start with 0% duty cycle (off) for motor 1
-pwmB.start(50)  # Start with 0% duty cycle (off) for motor 2
+pwmA.start(100)  # Start with 0% duty cycle (off) for motor 1
+pwmB.start(100)  # Start with 0% duty cycle (off) for motor 2
 
 """
 Bare-metal motor functionality that interacts via GPIO pins.
@@ -162,3 +162,4 @@ def turn_behind_right() -> None:
     Rotates the bot on the spot 180 degrees to the right.
     """
     turn_right(2.9)
+
