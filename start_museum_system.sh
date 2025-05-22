@@ -33,6 +33,11 @@ echo "Starting voice bot system..."
 python3 nlp_voice_bot/voicebot.py &
 VOICE_PID=$!
 
+# Start the webpage in the background
+echo "Starting web page..."
+python3 web/app.py &
+WEB_PID=$!
+
 echo "Museum system started successfully!"
 echo "Press Ctrl+C to stop the script"
 
@@ -49,6 +54,12 @@ while true; do
     if ! ps -p $VOICE_PID > /dev/null; then
         echo "Voice bot system has stopped. Restarting..."
         python3 nlp_voice_bot/voicebot.py &
+        VOICE_PID=$!
+    fi
+
+    if ! ps -p $WEB_PID> /dev/null; then
+        echo "Web page has stopped. Restarting..."
+        python3 web/app.py &
         VOICE_PID=$!
     fi
     
