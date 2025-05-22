@@ -20,9 +20,8 @@ from basic_embedded.ultrasonic_sensor import init_sensor, stop_sensor, get_dista
 from capture_analyse import cap_anal
 
 # Constants
-NINETY_DEG = 0.5
-PIVOT_DISTANCE = 20.0
-OBSTACLE_THRESHOLD = 15.0
+PIVOT_DISTANCE = 30.0
+OBSTACLE_THRESHOLD = 30.0
 
 # Grid Layout
 Location_matrix = [
