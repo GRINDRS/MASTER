@@ -29,6 +29,7 @@ def resize_and_encode_image(image_path: str, max_size:int =512):
 
 def match_image_to_artwork(encoded_image: Any, artworks: Any):
     try:
+
         artwork_lines = "\n".join([
             f"{name}: {', '.join(tags)}"
             for name, tags in artworks.items()
@@ -40,7 +41,7 @@ You will be shown an image. First, describe it in detail, noting visual features
 
 Then, compare it to this list of artworks and determine the best match, based on concept, style, and visual similarity.
 
-Only return the name of the matched artwork, or \"nothing found\" if there's no good match.
+Only return the name of the matched artwork, or "nothing found" if there's no good match.
 
 Artworks:
 {artwork_lines}
@@ -59,51 +60,45 @@ Artworks:
         ) # type: ignore
 
         result: str = response.choices[0].message.content.strip()  # type: ignore
-        result_lower = result.lower()
-        if "nothing found" in result_lower:
-            return "wall"
-        for name in artworks.keys():
-            if name.lower() in result_lower:
-                return name
-        return "wall"
+        return result
     except Exception as e:
         print(f"[ERROR] OpenAI API failed: {e}")
-        return "wall"
+        return "nothing found"
 
 if __name__ == "__main__":
     artworks = {
-        "Starry Night": {
+        "The Scream by Edvard Munch": {
+            "the scream", "edvard munch", "screaming figure", "hands on face",
+            "swirling sky", "expressionist style", "vivid colours", "psychological expression"
+        },
+        "Starry Night by Vincent van Gogh": {
             "starry-night", "van-gogh", "swirling-sky", "yellow-stars", "blue-sky",
             "cypress-tree", "village-at-night", "expressionist-art", "moon",
             "blue-and-yellow-painting", "famous-artwork", "post-impressionism"
         },
-        "Stylized Egyptian Sculpture": {
+        "Sunflowers by Vincent van Gogh": {
+            "sunflowers", "vase with flowers", "yellow petals", "wilted petals",
+            "green stems", "warm ochre background", "post-impressionist style",
+            "Van Gogh signature", "textured impasto brushwork"
+        },
+        "Liberty Leading the People by Eugène Delacroix": {
+            "romanticism", "oil painting", "historical painting", "Eugène Delacroix",
+            "revolutionary scene", "French flag", "bare-breasted woman", "tricolour flag",
+            "heroic symbolism"
+        },
+        "Mona Lisa by Leonardo da Vinci": {
+            "portrait", "woman", "smile", "Leonardo da Vinci", "Renaissance",
+            "sfumato", "folded hands", "calm expression"
+        },
+        "Ancient Egyptian Statue": {
             "metal-figurine", "brass-statue", "decorative-figure", "ethnic-art",
             "tribal-sculpture", "african-style-decor", "woman-holding-bowl",
             "red-and-black-dress", "ornamental-design", "engraved-base",
             "painted-metal-statue", "folk-art-sculpture", "bronze-body-figure"
         },
-        "Toy Dog": {
+        "Plushy Dog Sculpture": {
             "plush_dog", "brown_dog", "toy_dog", "fabric_dog", "stuffed_animal",
             "dog_doorstop", "bead_eyes", "bow_collar", "floppy_ears", "round_body"
-        },
-        "Sunflowers (Van Gogh)": {
-            "sunflowers", "vase with flowers", "yellow petals", "wilted petals",
-            "green stems", "warm ochre background", "post-impressionist style",
-            "Van Gogh signature", "textured impasto brushwork"
-        },
-        "Liberty Leading the People": {
-            "romanticism", "oil painting", "historical painting", "Eugène Delacroix",
-            "revolutionary scene", "French flag", "bare-breasted woman", "tricolour flag",
-            "heroic symbolism"
-        },
-        "Mona Lisa": {
-            "portrait", "woman", "smile", "Leonardo da Vinci", "Renaissance",
-            "sfumato", "folded hands", "calm expression"
-        },
-        "The Scream": {
-            "the scream", "edvard munch", "screaming figure", "hands on face",
-            "swirling sky", "expressionist style", "vivid colours", "psychological expression"
         }
     }
 
