@@ -209,6 +209,13 @@ def answer_question(exhibit: str, question: str) -> str:
     ).choices[0].message.content.strip()
 
 def choose_locs(text: str) -> list[str]:
+    # First try simple keyword matching for robustness
+    lower_text = text.lower()
+    matches = [e["location"] for e in EXHIBITS if e["keyword"] in lower_text]
+    if matches:
+        return matches[:3]
+
+    # Fallback to LLM-based selection
     exhibit_list = ", ".join(f"{e['keyword']} ({e['location']})" for e in EXHIBITS)
     reply = client.chat.completions.create(
         model="gpt-3.5-turbo",
