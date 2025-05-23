@@ -156,11 +156,26 @@ def get_to_location(location):
 
     while currentPosition != target:
         direction_vector = [target[0] - currentPosition[0], target[1] - currentPosition[1]]
-        step = [0, 0]
-        if direction_vector[0] != 0:
-            step[0] = int(direction_vector[0] / abs(direction_vector[0]))
-        elif direction_vector[1] != 0:
-            step[1] = int(direction_vector[1] / abs(direction_vector[1]))
+
+        # Candidate moves (row-first and column-first)
+        row_step = [int(direction_vector[0] / abs(direction_vector[0])) if direction_vector[0] != 0 else 0, 0]
+        col_step = [0, int(direction_vector[1] / abs(direction_vector[1])) if direction_vector[1] != 0 else 0]
+
+        def is_walkable(step_vec):
+            nxt = [currentPosition[0] + step_vec[0], currentPosition[1] + step_vec[1]]
+            if not (0 <= nxt[0] < len(Location_matrix) and 0 <= nxt[1] < len(Location_matrix[0])):
+                return False
+            return Location_matrix[nxt[0]][nxt[1]] != 0
+
+        # Decide which axis to move along this step
+        if row_step != [0, 0] and is_walkable(row_step):
+            step = row_step
+        elif col_step != [0, 0] and is_walkable(col_step):
+            step = col_step
+        else:
+            # If preferred axes blocked, try the other non-zero axis anyway (may be forced to obstacle cell)
+            step = col_step if row_step == [0, 0] else row_step
+
         next_step = [currentPosition[0] + step[0], currentPosition[1] + step[1]]
         calculate_movement(next_step, step, location)
 
