@@ -86,7 +86,7 @@ def calculate_movement(next_loc, direction_vector, location):
 
     print("Moving forward to:", next_loc)
     move_forward()
-    time.sleep(4.75)
+    time.sleep(6)
     motor1_stop()
     motor2_stop()
     global currentPosition

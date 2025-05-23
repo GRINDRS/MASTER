@@ -13,6 +13,7 @@ IN3 = 23
 IN4 = 24
 ENB = 25  # PWM for motor 2
 
+timenine = 1.37
 # Set up the GPIO pins
 GPIO.setup(IN1, GPIO.OUT)
 GPIO.setup(IN2, GPIO.OUT)
@@ -143,23 +144,23 @@ def turn_90_left() -> None:
     """
     Rotates the bot on the spot 90 degrees to the left.
     """
-    turn_left(1.45)
+    turn_left(timenine)
 
 def turn_90_right() -> None:
     """
     Rotates the bot on the spot 90 degrees to the right.
     """
-    turn_right(1.45)
+    turn_right(timenine)
 
 def turn_behind_left() -> None:
     """
     Rotates the bot on the spot 180 degrees to the left.
     """
-    turn_left(2.9)
+    turn_left(timenine * 2)
 
 def turn_behind_right() -> None:
     """
     Rotates the bot on the spot 180 degrees to the right.
     """
-    turn_right(2.9)
+    turn_right(timenine * 2)
 
