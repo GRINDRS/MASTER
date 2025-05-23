@@ -31,6 +31,9 @@ Location_matrix = [
 
 directions = ["UP", "RIGHT", "DOWN", "LEFT"]
 currently_facing = "UP"
+# MQTT client placeholder – will be initialised in start_navigation()
+mqtt_client: mqtt.Client | None = None
+
 currentPosition = [2, 1]  # Start at "Initial"
 
 def wall_detection() -> bool:
@@ -109,10 +112,12 @@ def calculate_movement(next_loc, direction_vector, location):
 
         # Verification with retries
         print("Running image verification...")
+        verification_success = False
         for attempt in range(3):
             detected = cap_anal()
             if detected == location:
                 print("Image verification successful.")
+                verification_success = True
                 break
             print(f"Attempt {attempt + 1}: Image not matched. Adjusting position.")
 
@@ -126,8 +131,14 @@ def calculate_movement(next_loc, direction_vector, location):
             motor1_stop()
             motor2_stop()
 
-        else:
-            print(f"WARNING: Expected '{location}' but image not confirmed after retries.")
+        if verification_success and mqtt_client:
+            try:
+                mqtt_client.publish("arrived", location)
+                print("MQTT: Published 'arrived' for", location)
+            except Exception as e:
+                print("MQTT publish error:", e)
+        elif not verification_success:
+            print(f"WARNING: Expected '{location}' but image not confirmed after retries. Not publishing arrival.")
 
 def next_position(name):
     for i, row in enumerate(Location_matrix):
@@ -171,11 +182,12 @@ def on_message(client, userdata, msg):
         stop_sensor()
 
 def start_navigation():
-    client = mqtt.Client()
-    client.on_connect = on_connect
-    client.on_message = on_message
-    client.connect("localhost", 1883, 60)
-    client.loop_forever()
+    global mqtt_client
+    mqtt_client = mqtt.Client()
+    mqtt_client.on_connect = on_connect
+    mqtt_client.on_message = on_message
+    mqtt_client.connect("localhost", 1883, 60)
+    mqtt_client.loop_forever()
 
 if __name__ == "__main__":
     start_navigation()
