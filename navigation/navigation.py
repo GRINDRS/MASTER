@@ -24,9 +24,9 @@ OBSTACLE_THRESHOLD = 30.0
 
 # Updated Location_matrix (using long exhibit names) for compatibility with voicebot (which now sends the long exhibit name) and capture_analyse (which uses the long exhibit name for image verification)
 Location_matrix = [
-    ["The Scream by Edvard Munch", "Mona Lisa by Leonardo da Vinci", "Sunflowers by Vincent van Gogh"],
+    ["Starry Night by Vincent van Gogh", "Mona Lisa by Leonardo da Vinci", "Sunflowers by Vincent van Gogh"],
     ["Plushy Dog Sculpture", 0, "Ancient Egyptian Statue"],
-    ["Liberty Leading the People by Eugène Delacroix", "initial", "Starry Night by Vincent van Gogh"]
+    ["Liberty Leading the People by Eugène Delacroix", "initial", "The Scream by Edvard Munch"]
 ]
 
 directions = ["UP", "RIGHT", "DOWN", "LEFT"]
