@@ -1,0 +1,38 @@
+Pi-5 Model B: $179
+https://www.jaycar.com.au/raspberry-pi-5-single-board-computer-8gb/p/XC9108?srsltid=AfmBOorhEL8pZmq_h_I9w_wLPuudKwfgSgGzj2Pg_QpLbbB7llWFtH3y
+
+Motor Driver: $17.95
+https://www.jaycar.com.au/arduino-compatible-stepper-motor-controller-module/p/XC4492?srsltid=AfmBOoqfVzu6zYWDPi9VtTCMSln5NwKGLUNXbG4utgI5rkuY9jlC1Sb3
+
+Motors x 2: $23.95 x 2
+https://www.jaycar.com.au/36rpm-12vdc-reversible-gearhead-motor/p/YG2734
+
+Female to Male Wires: $11.25
+https://www.jaycar.com.au/150mm-plug-to-socket-jumper-leads-40-pieces/p/WC6028?srsltid=AfmBOorWdbg4FOhrxxwULNIx2IGWJSeYflVfD05wH-kU9Ah0Flece-UM
+
+Ultrasonic Sensors: $9.95
+https://www.jaycar.com.au/arduino-compatible-dual-ultrasonic-sensor-module/p/XC4442?srsltid=AfmBOorI4greQTmYlT9PwTGAOikyAdYnOR-jq9-OHoDwN8r7_CJuz90s
+
+C920HD Webcam: $144
+https://www.officeworks.com.au/shop/officeworks/p/logitech-c920-full-hd-pro-webcam-inlog7536?istCompanyId=0403b0ba-0671-498f-aeb7-e2ff71b61924&istFeedId=00ff5695-1f12-4ff3-82f4-49dd39a43a69&istItemId=wliwrxlqw&istBid=t&cm_mmc=Google:SEM:Always_on:OW%7CAU+%7CTechnology%7CTechnology%7CNA%7CSEM%7CGoogle%7CPMax%7CNA:offbrd580125&s_kwcid=AL!12073!3!!!!x!!&gad_source=1&gad_campaignid=19856019778&gbraid=0AAAAAD1FgQbcNH6QCPTtpId9eNdk3EZhb&gclid=Cj0KCQjwlrvBBhDnARIsAHEQgOSizGG7omZMz9TfS4WTi6s51w0Aur6V2EX83-qD6HgvmeAML1jQ-WUaAme6EALw_wcB&gclsrc=aw.ds
+
+Power Bank: $39.99
+https://www.amazon.com.au/INIU-Portable-20000mAh-Charging-Compatible/dp/B07YPY31FL/ref=sr_1_5?adgrpid=87249300655&dib=eyJ2IjoiMSJ9.glO_Hb8-y65iE_Tt1BMRzNyGb3UCzG36YbCGK9rd40J0z_duj3w0u3Iy7Y2jpXIEfnY0RQS2Nmq72ar9W-g-WAc2SMNvQ2nFRCtgyPn9CIOUo3KHSqI2QD-KTomyFfmUCPBBqxDxMDIc5dn8tEgYYdIahgDdZ4wh3MuFRZ2atmHkJNcSAlIvQK4YLxoxY4U6XsXwF04urROrObpHEhnFPazQJIcfjWtZ5BdgqCWSNpUW96AC1oGbOx0bxletq5SlXdO9EzQpfroaYkQDoz6_G7F9ifBPJHKgGZK8AtzfJrE.xghqWuP5tZXMvWdFD06JGNC0WGtLRMUZITxOaRqS0d4&dib_tag=se&hvadid=591133012694&hvdev=c&hvlocphy=9069069&hvnetw=g&hvqmt=e&hvrand=9870958475333039914&hvtargid=kwd-297004637027&hydadcr=13412_353438&keywords=power%2Bbank%2Bamazon&mcid=ab1b5d0c357e368c91bc267d5ce95bc3&qid=1747958145&sr=8-5&th=1
+
+Lead Acid Battery: $12.95
+https://www.jaycar.com.au/12v-1-3ah-sealed-lead-acid-sla-battery/p/SB2480?srsltid=AfmBOoqpJBoWpm_miGbOEAyNkWrgLXNElq3hkUHVk7jH07V14xtugUZO
+
+Back Wheel: $14.95
+https://www.jaycar.com.au/pack-of-2-rear-tyres-for-gt3786-buggy/p/GT3911
+
+Front Wheels x 2: 14.95
+https://www.jaycar.com.au/pack-of-2-front-tyres-for-gt3788-truck/p/GT3930?srsltid=AfmBOooHtKDiN7BM4hsL-n1Y7rtPVvEIX3EX3WBQ2HHxsGV823gZvMzs
+Female to Female Wires
+
+Microphone: $28.10
+https://www.amazon.com.au/Upgraded-Conference-Microphone-Omnidirectional-Condenser/dp/B08GPPQH9B/ref=sr_1_7?dib=eyJ2IjoiMSJ9.LyqukC87OGivCOm1K7uX7G9-pUGoCecgqYNQAVmPWKuyOJwSPd5Yl-4vkLpVjp-YgdVDB3LM8EerAnVUyUXjtrSPjs8SXbDYLM-6DNbVGcM0lLGPmz73aLQHJ8kD6883ekpXQWM2geiPY9nrQT9ChN3rprX7d1QSF_cunjbywISLHHLuas2sR5CE0gKuiS915N5nESmONUanqrTWgIGFJD23g789M1ZASWUTW4PmQK1O-ij8fK3oRLuODnCG8ZtldFzokz-KXLNkfP8siabxgYSiCuAcBOK4rXO31VCSBQ4.gzgyI3I1zZ4iP3SQflfdUUI-pb_CSbZNqT8g4mL6K0A&dib_tag=se&keywords=conference+mic&qid=1747958038&sr=8-7
+
+Bluetooth speaker: $15.0
+https://www.kmart.com.au/product/bluetooth-speaker-black-43369652/
+
+Total: $550.94
