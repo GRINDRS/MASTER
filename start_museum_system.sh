@@ -50,12 +50,6 @@ while true; do
         python3 main.py &
         MAIN_PID=$!
     fi
-    
-    if ! ps -p $VOICE_PID > /dev/null; then
-        echo "Voice bot system has stopped. Restarting..."
-        python3 nlp_voice_bot/voicebot.py &
-        VOICE_PID=$!
-    fi
 
     if ! ps -p $WEB_PID> /dev/null; then
         echo "Web page has stopped. Restarting..."
