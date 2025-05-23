@@ -185,10 +185,9 @@ def on_connect(client, userdata, flags, rc):
     client.subscribe("movement")
 
 def on_message(client, userdata, msg):
-    global currentPosition, currently_facing
+    global currently_facing
     location = msg.payload.decode()
     print("Received target location:", location)
-    currentPosition = [3, 1]
     currently_facing = "UP"
     init_sensor()
     try:
