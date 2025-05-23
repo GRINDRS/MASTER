@@ -1,12 +1,12 @@
 {
-    "user": "I didn't quite catch that let's do the guided tour to get started you can always switch to free roam later",
-    "response": "Hi! Welcome to the museum. Would you like a guided tour or would you prefer to roam freely at your own pace?",
-    "current": "Mona Lisa by Leonardo da Vinci",
+    "user": "stop",
+    "response": "Thanks for visiting! I hope you enjoy the rest of your day at the museum.",
+    "current": "Sunflowers by Vincent van Gogh",
     "been_to": [
-        "Mona Lisa by Leonardo da Vinci"
+        "Mona Lisa by Leonardo da Vinci",
+        "Sunflowers by Vincent van Gogh"
     ],
     "going_to": [
-        "Starry Night by Vincent van Gogh",
-        "The Scream by Edvard Munch"
+        "Sunflowers by Vincent van Gogh"
     ]
 }

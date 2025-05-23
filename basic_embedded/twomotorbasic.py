@@ -1,39 +1,65 @@
+"""
+twomotorbasic.py
+
+This module provides low-level GPIO-based motor control functions and high-level
+movement behaviours for a two-motor robotic platform, using the Raspberry Pi's
+GPIO interface.
+
+The script is configured for two DC motors connected via an H-bridge motor driver.
+It supports forward/reverse motion, turning, stopping, and speed control through
+PWM (Pulse Width Modulation). Designed to be used in indoor or controlled
+environments, typical applications include robotics demonstrations, autonomous
+navigation experiments, or educational projects.
+
+Author: GRINDRS
+Platform: Raspberry Pi (BCM GPIO Mode)
+Date: 2025
+"""
+
 import RPi.GPIO as GPIO
 import time
 
-# Set GPIO mode
+# ----------------------------------------------------------------------
+# GPIO SETUP
+# ----------------------------------------------------------------------
+
+# Use Broadcom SOC channel numbering
 GPIO.setmode(GPIO.BCM)
 
-# Define the GPIO pins for the motors
+# Assign GPIO pins for motor 1
 IN1 = 17
 IN2 = 27
-ENA = 22  # PWM for motor 1
+ENA = 22  # PWM-enabled pin for controlling motor 1 speed
 
+# Assign GPIO pins for motor 2
 IN3 = 23
 IN4 = 24
-ENB = 25  # PWM for motor 2
+ENB = 25  # PWM-enabled pin for controlling motor 2 speed
 
-# Set up the GPIO pins
+# Set all motor control pins as outputs
 GPIO.setup(IN1, GPIO.OUT)
 GPIO.setup(IN2, GPIO.OUT)
-GPIO.setup(ENA, GPIO.OUT)  # Enable pin for motor 1
+GPIO.setup(ENA, GPIO.OUT)
 
 GPIO.setup(IN3, GPIO.OUT)
 GPIO.setup(IN4, GPIO.OUT)
-GPIO.setup(ENB, GPIO.OUT)  # Enable pin for motor 2
+GPIO.setup(ENB, GPIO.OUT)
 
-# Set the motor speeds (using PWM on ENA and ENB)
-pwmA = GPIO.PWM(ENA, 1000)  # 1000 Hz frequency for motor 1
-pwmB = GPIO.PWM(ENB, 1000)  # 1000 Hz frequency for motor 2
-pwmA.start(100)  # Start with 0% duty cycle (off) for motor 1
-pwmB.start(100)  # Start with 0% duty cycle (off) for motor 2
+# Set up PWM channels at 1 kHz for each motor
+pwmA = GPIO.PWM(ENA, 1000)
+pwmB = GPIO.PWM(ENB, 1000)
 
-"""
-Bare-metal motor functionality that interacts via GPIO pins.
-"""
+# Start motors with 100% duty cycle
+pwmA.start(100)
+pwmB.start(100)
+
+# ----------------------------------------------------------------------
+# LOW-LEVEL MOTOR FUNCTIONS
+# ----------------------------------------------------------------------
+
 def motor1_forward() -> None:
     """
-    Using GPIO Pins, drive motor1 forward.
+    Drives motor 1 forward by setting the appropriate GPIO outputs.
     """
     GPIO.output(IN1, GPIO.LOW)
     GPIO.output(IN2, GPIO.HIGH)
@@ -41,7 +67,7 @@ def motor1_forward() -> None:
 
 def motor1_backward() -> None:
     """
-    Using GPIO Pins, drive motor1 backward.
+    Drives motor 1 in reverse by toggling its GPIO outputs.
     """
     GPIO.output(IN1, GPIO.HIGH)
     GPIO.output(IN2, GPIO.LOW)
@@ -49,7 +75,7 @@ def motor1_backward() -> None:
 
 def motor2_forward() -> None:
     """
-    Using GPIO Pins, drive motor2 forward.
+    Drives motor 2 forward by setting the relevant GPIO signals.
     """
     GPIO.output(IN4, GPIO.HIGH)
     GPIO.output(IN3, GPIO.LOW)
@@ -57,7 +83,7 @@ def motor2_forward() -> None:
 
 def motor2_backward() -> None:
     """
-    Using GPIO Pins, drive motor2 backward.
+    Drives motor 2 in reverse direction by toggling its GPIO pins.
     """
     GPIO.output(IN4, GPIO.LOW)
     GPIO.output(IN3, GPIO.HIGH)
@@ -65,7 +91,7 @@ def motor2_backward() -> None:
 
 def motor1_stop() -> None:
     """
-    Using GPIO Pins, stop motor1.
+    Stops motor 1 by disabling both input pins.
     """
     GPIO.output(IN1, GPIO.LOW)
     GPIO.output(IN2, GPIO.LOW)
@@ -73,7 +99,7 @@ def motor1_stop() -> None:
 
 def motor2_stop() -> None:
     """
-    Using GPIO Pins, stop motor2.
+    Stops motor 2 by setting both input pins to LOW.
     """
     GPIO.output(IN3, GPIO.LOW)
     GPIO.output(IN4, GPIO.LOW)
@@ -81,51 +107,52 @@ def motor2_stop() -> None:
 
 def set_speed(motor: int, speed: int) -> None:
     """
-    Sets the speed of a requested motor using a given speed as a percentage.
+    Adjusts the speed of the specified motor using PWM duty cycle.
 
     Parameters:
-        motor: The motor number given (1, 2).
-        speed: The speed integer (interpreted as a percentage).
+        motor (int): Either 1 or 2 to represent motor 1 or motor 2.
+        speed (int): Desired speed as a percentage (0–100).
     """
     if motor == 1:
-        pwmA.ChangeDutyCycle(speed)  # Change motor 1 speed (0-100%)
+        pwmA.ChangeDutyCycle(speed)
     elif motor == 2:
-        pwmB.ChangeDutyCycle(speed)  # Change motor 2 speed (0-100%)
+        pwmB.ChangeDutyCycle(speed)
 
-"""
-Abstraction layer functions that utilise the bare-metal ones.
-"""
+# ----------------------------------------------------------------------
+# HIGH-LEVEL ROBOT CONTROL FUNCTIONS
+# ----------------------------------------------------------------------
+
 def turn_right(timer: float) -> None:
     """
-    Turns the robot right on the spot, for a set time.
+    Rotates the robot to the right on the spot for a defined time.
 
     Parameters:
-        timer: The time to turn for.
+        timer (float): Duration of the turn in seconds.
     """
     motor1_forward()
     motor2_backward()
     print("Turning right")
-    time.sleep(timer) 
+    time.sleep(timer)
     motor1_stop()
     motor2_stop()
 
 def turn_left(timer: float) -> None:
     """
-    Turns the robot left on the spot, for a set time.
+    Rotates the robot to the left on the spot for a defined time.
 
     Parameters:
-        timer: The time to turn for.
+        timer (float): Duration of the turn in seconds.
     """
     motor1_backward()
     motor2_forward()
     print("Turning left")
-    time.sleep(timer)  
+    time.sleep(timer)
     motor1_stop()
     motor2_stop()
 
 def move_forward() -> None:
     """
-    Moves the robot forward using both motors for a small amount of time.
+    Moves the robot forward by engaging both motors in forward motion.
     """
     motor1_forward()
     motor2_forward()
@@ -133,7 +160,7 @@ def move_forward() -> None:
 
 def move_backward() -> None:
     """
-    Moves the robot backwards using both motors for a small amount of time.
+    Moves the robot backward by reversing both motors.
     """
     motor1_backward()
     motor2_backward()
@@ -141,25 +168,26 @@ def move_backward() -> None:
 
 def turn_90_left() -> None:
     """
-    Rotates the bot on the spot 90 degrees to the left.
+    Rotates the robot roughly 90 degrees to the left.
+    The duration may need calibration depending on surface and battery.
     """
     turn_left(1.45)
 
 def turn_90_right() -> None:
     """
-    Rotates the bot on the spot 90 degrees to the right.
+    Rotates the robot roughly 90 degrees to the right.
+    The duration may need calibration depending on surface and battery.
     """
     turn_right(1.45)
 
 def turn_behind_left() -> None:
     """
-    Rotates the bot on the spot 180 degrees to the left.
+    Performs a full 180-degree turn to the left.
     """
     turn_left(2.9)
 
 def turn_behind_right() -> None:
     """
-    Rotates the bot on the spot 180 degrees to the right.
+    Performs a full 180-degree turn to the right.
     """
     turn_right(2.9)
-

@@ -1,5 +1,21 @@
 """
-Integrated Grid-Based Navigation with Optimized Turning and Image Verification
+grid_navigator.py
+
+Integrated Grid-Based Navigation with Optimised Turning and Image Verification
+
+This module controls a museum navigation robot that moves through a 3x3 grid of
+exhibits using directional logic, obstacle detection, and image verification.
+It subscribes to a target location via MQTT, aligns directionally using an
+orientation model, and validates arrival using camera-based image recognition.
+
+Key Features:
+- Grid-based movement with directional memory
+- Obstacle avoidance using ultrasonic sensors
+- Image confirmation via OpenAI Vision pipeline
+- MQTT message-driven navigation control
+
+Author: GRINDRS
+Date: 2025
 """
 
 import math
@@ -8,6 +24,7 @@ import paho.mqtt.client as mqtt
 import sys
 import os
 
+# Import local modules for motor and sensor control
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from basic_embedded.twomotorbasic import (
     move_forward, move_backward,
@@ -18,26 +35,43 @@ from basic_embedded.twomotorbasic import (
 from basic_embedded.ultrasonic_sensor import init_sensor, stop_sensor, get_distance
 from capture_analyse import cap_anal
 
-# Constants
-PIVOT_DISTANCE = 30.0
-OBSTACLE_THRESHOLD = 30.0
+# -----------------------------
+# Constants and Initial States
+# -----------------------------
 
-# Updated Location_matrix (using long exhibit names) for compatibility with voicebot (which now sends the long exhibit name) and capture_analyse (which uses the long exhibit name for image verification)
+PIVOT_DISTANCE = 30.0  # Distance in cm to consider obstacle too close
+OBSTACLE_THRESHOLD = 30.0  # Redundant but defined for future use
+
+# Location matrix representing 3x3 grid of exhibits
 Location_matrix = [
     ["The Scream by Edvard Munch", "Mona Lisa by Leonardo da Vinci", "Sunflowers by Vincent van Gogh"],
     ["Plushy Dog Sculpture", 0, "Ancient Egyptian Statue"],
     ["Liberty Leading the People by Eugène Delacroix", "initial", "Starry Night by Vincent van Gogh"]
 ]
 
+# Directional states and starting position
 directions = ["UP", "RIGHT", "DOWN", "LEFT"]
 currently_facing = "UP"
-currentPosition = [2, 1]  # Start at "Initial"
+currentPosition = [2, 1]  # Start at the "initial" location
+
+# -----------------------------
+# Navigation and Detection
+# -----------------------------
 
 def wall_detection() -> bool:
+    """
+    Returns True if an obstacle is detected within the pivot distance threshold.
+    """
     current = get_distance()
     return current is not None and current < PIVOT_DISTANCE
 
 def update_orientation(turn: str):
+    """
+    Updates the robot’s orientation based on the last turn direction.
+
+    Args:
+        turn (str): Either "LEFT" or "RIGHT".
+    """
     global currently_facing
     idx = directions.index(currently_facing)
     if turn == "RIGHT":
@@ -46,6 +80,12 @@ def update_orientation(turn: str):
         currently_facing = directions[(idx - 1) % 4]
 
 def rotate_to_direction(direction_vector):
+    """
+    Rotates the robot to face a new direction based on the direction vector.
+
+    Args:
+        direction_vector (list[int]): A vector like [-1, 0] representing direction.
+    """
     global currently_facing
     direction_map = {
         (-1, 0): "UP",
@@ -61,6 +101,7 @@ def rotate_to_direction(direction_vector):
     desired_index = directions.index(desired)
     delta = (desired_index - current_index) % 4
 
+    # Determine the shortest rotation (left/right/180)
     if delta == 0:
         return
     elif delta == 1:
@@ -75,7 +116,17 @@ def rotate_to_direction(direction_vector):
         update_orientation("LEFT")
 
 def calculate_movement(next_loc, direction_vector, location):
+    """
+    Rotates, checks for obstacles, moves forward, and performs image verification.
+
+    Args:
+        next_loc (list[int]): Coordinates of the next position.
+        direction_vector (list[int]): Direction to face.
+        location (str): Target location name for image verification.
+    """
     rotate_to_direction(direction_vector)
+
+    # Wait for obstacle to clear
     if wall_detection():
         print("Obstacle detected. Waiting...")
         while wall_detection():
@@ -86,10 +137,11 @@ def calculate_movement(next_loc, direction_vector, location):
     time.sleep(4.75)
     motor1_stop()
     motor2_stop()
+
     global currentPosition
     currentPosition = next_loc
 
-    # Arrival logic
+    # If reached destination, verify exhibit visually
     if currentPosition == next_position(location):
         wall_direction = None
         if currentPosition == [3, 1] or currentPosition == [0, 1]:
@@ -107,7 +159,7 @@ def calculate_movement(next_loc, direction_vector, location):
             }[wall_direction]
             rotate_to_direction(target_vector)
 
-        # Verification with retries
+        # Retry image verification if initial attempt fails
         print("Running image verification...")
         for attempt in range(3):
             detected = cap_anal()
@@ -125,11 +177,19 @@ def calculate_movement(next_loc, direction_vector, location):
 
             motor1_stop()
             motor2_stop()
-
         else:
             print(f"WARNING: Expected '{location}' but image not confirmed after retries.")
 
 def next_position(name):
+    """
+    Looks up the coordinates of a given exhibit name.
+
+    Args:
+        name (str): Exhibit name.
+
+    Returns:
+        list[int] | None: Grid coordinates if found, else None.
+    """
     for i, row in enumerate(Location_matrix):
         for j, val in enumerate(row):
             if val == name:
@@ -137,12 +197,19 @@ def next_position(name):
     return None
 
 def get_to_location(location):
+    """
+    Navigates the robot to the specified exhibit location.
+
+    Args:
+        location (str): Target exhibit name.
+    """
     global currentPosition
     target = next_position(location)
     if not target:
         print("Target location not found:", location)
         return
 
+    # Move in a stepwise fashion until the robot reaches the target
     while currentPosition != target:
         direction_vector = [target[0] - currentPosition[0], target[1] - currentPosition[1]]
         step = [0, 0]
@@ -153,16 +220,36 @@ def get_to_location(location):
         next_step = [currentPosition[0] + step[0], currentPosition[1] + step[1]]
         calculate_movement(next_step, step, location)
 
-# MQTT Setup
+# -----------------------------
+# MQTT Communication
+# -----------------------------
+
 def on_connect(client, userdata, flags, rc):
+    """
+    Callback triggered on successful MQTT connection.
+
+    Args:
+        client: MQTT client.
+        userdata: User data (unused).
+        flags: Response flags.
+        rc: Connection result code.
+    """
     print("Connected with result code", rc)
     client.subscribe("movement")
 
 def on_message(client, userdata, msg):
+    """
+    Handles incoming MQTT messages to trigger navigation.
+
+    Args:
+        client: MQTT client.
+        userdata: User data (unused).
+        msg: MQTT message.
+    """
     global currentPosition, currently_facing
     location = msg.payload.decode()
     print("Received target location:", location)
-    currentPosition = [3, 1]
+    currentPosition = [3, 1]  # Reset position
     currently_facing = "UP"
     init_sensor()
     try:
@@ -171,6 +258,9 @@ def on_message(client, userdata, msg):
         stop_sensor()
 
 def start_navigation():
+    """
+    Initialises the MQTT client and starts listening for movement commands.
+    """
     client = mqtt.Client()
     client.on_connect = on_connect
     client.on_message = on_message

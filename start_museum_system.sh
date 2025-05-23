@@ -1,13 +1,31 @@
 #!/bin/bash
+#
+# start_museum_system.sh
+#
+# This script initialises and supervises the full museum navigation system.
+# It checks for the Mosquitto MQTT broker, installs it if missing (for macOS or Linux),
+# starts the broker, and then launches three components in the background:
+# - The main navigation backend
+# - The voicebot assistant
+# - The web interface
+#
+# If any process crashes, the script will restart it automatically.
+# Use Ctrl+C to stop the system gracefully.
+#
+# Author: GRINDRS
+# Date: 2025
 
-# Check if Mosquitto MQTT broker is installed
+# --------------------------------------------------
+# Ensure Mosquitto MQTT Broker is Installed
+# --------------------------------------------------
+
 if ! command -v mosquitto &> /dev/null; then
     echo "Mosquitto MQTT broker not found. Installing..."
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS
+        # For macOS using Homebrew
         brew install mosquitto
     elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        # Linux
+        # For Debian/Ubuntu-based Linux systems
         sudo apt-get update
         sudo apt-get install -y mosquitto mosquitto-clients
     else
@@ -16,24 +34,28 @@ if ! command -v mosquitto &> /dev/null; then
     fi
 fi
 
-# Start Mosquitto MQTT broker in the background
+# --------------------------------------------------
+# Start Mosquitto Broker
+# --------------------------------------------------
+
 echo "Starting Mosquitto MQTT broker..."
 mosquitto -d
 
-# Sleep for a moment to ensure broker is running
+# Allow broker time to initialise
 sleep 2
 
-# Start the main system in the background
+# --------------------------------------------------
+# Launch Core Components in Background
+# --------------------------------------------------
+
 echo "Starting main navigation system..."
 python3 navigation/navigation.py &
 MAIN_PID=$!
 
-# Start the voicebot in the background
 echo "Starting voice bot system..."
 python3 nlp_voice_bot/voicebot.py &
 VOICE_PID=$!
 
-# Start the webpage in the background
 echo "Starting web page..."
 python3 web/app.py &
 WEB_PID=$!
@@ -41,27 +63,32 @@ WEB_PID=$!
 echo "Museum system started successfully!"
 echo "Press Ctrl+C to stop the script"
 
-# Keep script running to allow orderly shutdown
-trap "echo 'Shutting down...'; kill $MAIN_PID; kill $VOICE_PID; pkill -f mosquitto; exit 0" SIGINT
+# --------------------------------------------------
+# Process Supervision Loop
+# --------------------------------------------------
+
+# Graceful shutdown handling
+trap "echo 'Shutting down...'; kill $MAIN_PID; kill $VOICE_PID; kill $WEB_PID; pkill -f mosquitto; exit 0" SIGINT
+
+# Monitor and restart any crashed processes
 while true; do
-    # Check if either process has died
     if ! ps -p $MAIN_PID > /dev/null; then
         echo "Main navigation system has stopped. Restarting..."
-        python3 main.py &
+        python3 navigation/navigation.py &
         MAIN_PID=$!
     fi
-    
+
     if ! ps -p $VOICE_PID > /dev/null; then
         echo "Voice bot system has stopped. Restarting..."
         python3 nlp_voice_bot/voicebot.py &
         VOICE_PID=$!
     fi
 
-    if ! ps -p $WEB_PID> /dev/null; then
+    if ! ps -p $WEB_PID > /dev/null; then
         echo "Web page has stopped. Restarting..."
         python3 web/app.py &
-        VOICE_PID=$!
+        WEB_PID=$!
     fi
-    
+
     sleep 2
-done 
+done
